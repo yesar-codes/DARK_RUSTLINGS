@@ -1,1 +1,1 @@
-This is our Game "Dark Rustlings" coded entirely in rust. The development of this Game is part of the 2026 Kit GameJam "ClementinenJam".
+Hier wird legalen Sachen gemacht aber mit Dark Rusted Dings
