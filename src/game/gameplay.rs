@@ -7,7 +7,7 @@ use crate::game::level::{
 use crate::game::player::{Player, PlayerCollider, Velocity};
 
 const LEVEL_TIME_LIMIT_SECONDS: f32 = 30.0;
-const SWITCH_LIGHT_INTENSITY: f32 = 160_000.0;
+const SWITCH_LIGHT_INTENSITY: f32 = 1600_0000.0;
 
 #[derive(Resource, Default)]
 pub struct PauseState {
