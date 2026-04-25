@@ -32,10 +32,10 @@ pub(crate) fn spawn_player(
     spawn_point: Option<Res<PlayerSpawnPoint>>,
 ) {
     let spawn = spawn_point
-        .map(|point| point.0 + Vec3::Y * 0.8)
-        .unwrap_or(Vec3::new(0.0, 0.8, 0.0));
+        .map(|point| point.0 + Vec3::Y * 2.7)
+        .unwrap_or(Vec3::new(0.0, 6.0, 0.0));
 
-    let player_mesh = meshes.add(Mesh::from(Rectangle::new(1.5, 2.5)));
+    let player_mesh = meshes.add(Mesh::from(Rectangle::new(2.7, 4.7)));
     let player_material = materials.add(StandardMaterial {
         base_color_texture: Some(asset_server.load("sprites/amogus.png")),
         base_color: Color::WHITE,
