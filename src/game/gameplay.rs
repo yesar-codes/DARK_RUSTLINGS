@@ -1,8 +1,9 @@
 use bevy::app::AppExit;
+use bevy::audio::{AudioPlayer, PlaybackSettings};
 use bevy::prelude::*;
 
 use crate::game::level::{
-    self, CurrentLevelIndex, LevelCollision, LevelEntity, LevelList, SwitchLight,
+    self, CurrentLevelIndex, LevelCollision, LevelEntity, LevelList, LevelMusic, SwitchLight,
 };
 use crate::game::player::{Player, PlayerCollider, Velocity};
 
@@ -153,6 +154,7 @@ pub(crate) fn update_timer_ui(
 pub(crate) fn update_level_flow(
     mut commands: Commands,
     time: Res<Time>,
+    asset_server: Res<AssetServer>,
     mut flow: ResMut<LevelFlow>,
     mut ambient_light: ResMut<GlobalAmbientLight>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -161,6 +163,7 @@ pub(crate) fn update_level_flow(
     mut current_level: ResMut<CurrentLevelIndex>,
     collision: Option<Res<LevelCollision>>,
     level_entities: Query<Entity, With<LevelEntity>>,
+    music_entities: Query<Entity, With<LevelMusic>>,
     mut switch_lights: Query<&mut PointLight, With<SwitchLight>>,
     mut player_query: Query<(&mut Transform, &PlayerCollider, &mut Velocity), With<Player>>,
     overlay_query: Query<Entity, With<GameOverUiRoot>>,
@@ -188,6 +191,10 @@ pub(crate) fn update_level_flow(
                     for mut switch_light in &mut switch_lights {
                         switch_light.intensity = SWITCH_LIGHT_INTENSITY + switch_light.range * 5_000.0;
                     }
+                    if let Ok(music_entity) = music_entities.single() {
+                        commands.entity(music_entity).despawn();
+                    }
+                    play_switch_sound(&mut commands, &asset_server);
                     info!("Light switch activated");
                 }
             }
@@ -210,6 +217,7 @@ pub(crate) fn update_level_flow(
                     level::despawn_level_entities(&mut commands, &level_entities);
                     let spawn = level::spawn_level_at_index(
                         &mut commands,
+                        &asset_server,
                         &mut meshes,
                         &mut materials,
                         current_level.0,
@@ -224,6 +232,7 @@ pub(crate) fn update_level_flow(
                     level::despawn_level_entities(&mut commands, &level_entities);
                     let spawn = level::spawn_level_at_index(
                         &mut commands,
+                        &asset_server,
                         &mut meshes,
                         &mut materials,
                         current_level.0,
@@ -259,6 +268,7 @@ pub(crate) fn handle_game_over_buttons(
         (Changed<Interaction>, With<Button>),
     >,
     mut app_exit: MessageWriter<AppExit>,
+    asset_server: Res<AssetServer>,
     mut flow: ResMut<LevelFlow>,
     mut ambient_light: ResMut<GlobalAmbientLight>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -277,6 +287,7 @@ pub(crate) fn handle_game_over_buttons(
                     level::despawn_level_entities(&mut commands, &level_entities);
                     let spawn = level::spawn_level_at_index(
                         &mut commands,
+                        &asset_server,
                         &mut meshes,
                         &mut materials,
                         current_level.0,
@@ -528,6 +539,7 @@ pub(crate) fn handle_pause_buttons(
         (Changed<Interaction>, With<Button>),
     >,
     mut app_exit: MessageWriter<AppExit>,
+    asset_server: Res<AssetServer>,
     mut pause_state: ResMut<PauseState>,
     mut flow: ResMut<LevelFlow>,
     mut ambient_light: ResMut<GlobalAmbientLight>,
@@ -548,6 +560,7 @@ pub(crate) fn handle_pause_buttons(
                     level::despawn_level_entities(&mut commands, &level_entities);
                     let spawn = level::spawn_level_at_index(
                         &mut commands,
+                        &asset_server,
                         &mut meshes,
                         &mut materials,
                         current_level.0,
@@ -578,5 +591,13 @@ pub(crate) fn handle_pause_buttons(
             }
         }
     }
+}
+
+fn play_switch_sound(commands: &mut Commands, asset_server: &AssetServer) {
+    commands.spawn((
+        LevelEntity,
+        AudioPlayer::new(asset_server.load("audio/01_100-light.wav")),
+        PlaybackSettings::DESPAWN,
+    ));
 }
 

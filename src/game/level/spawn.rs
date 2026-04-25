@@ -12,6 +12,9 @@ pub struct LevelEntity;
 #[derive(Component)]
 pub struct SwitchLight;
 
+#[derive(Component)]
+pub struct LevelMusic;
+
 #[derive(Resource, Debug, Clone)]
 pub struct PlayerSpawnPoint(pub Vec3);
 

@@ -3,7 +3,8 @@ mod load;
 mod spawn;
 mod generate;
 
-pub use spawn::{LevelCollision, LevelEntity, PlayerSpawnPoint, SwitchLight};
+use bevy::audio::{AudioPlayer, PlaybackSettings};
+pub use spawn::{LevelCollision, LevelEntity, LevelMusic, PlayerSpawnPoint, SwitchLight};
 
 use bevy::prelude::*;
 use std::fs;
@@ -17,6 +18,7 @@ pub struct CurrentLevelIndex(pub usize);
 
 pub fn spawn_initial_level(
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -29,11 +31,12 @@ pub fn spawn_initial_level(
     commands.insert_resource(LevelList(levels.clone()));
     commands.insert_resource(CurrentLevelIndex(0));
 
-    let _ = spawn_level_at_index(&mut commands, &mut meshes, &mut materials, 0);
+    let _ = spawn_level_at_index(&mut commands, &asset_server, &mut meshes, &mut materials, 0);
 }
 
 pub fn spawn_level_at_index(
     commands: &mut Commands,
+    asset_server: &AssetServer,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     level_index: usize,
@@ -46,7 +49,10 @@ pub fn spawn_level_at_index(
         let level_path = &level_list[level_index];
 
         return match load::load_level(level_path.to_str().unwrap_or("")) {
-            Ok(level) => spawn::spawn_level(commands, meshes, materials, &level),
+            Ok(level) => spawn::spawn_level(commands, meshes, materials, &level).map(|spawn_position| {
+                spawn_level_music(commands, asset_server);
+                spawn_position
+            }),
             Err(error) => {
                 error!("Failed to load level: {error}");
                 None
@@ -60,7 +66,19 @@ pub fn spawn_level_at_index(
         32.0,
     );
 
-    return spawn::spawn_level(commands, meshes, materials, &level);
+    spawn::spawn_level(commands, meshes, materials, &level).map(|spawn_position| {
+        spawn_level_music(commands, asset_server);
+        spawn_position
+    })
+}
+
+fn spawn_level_music(commands: &mut Commands, asset_server: &AssetServer) {
+    commands.spawn((
+        LevelEntity,
+        LevelMusic,
+        AudioPlayer::new(asset_server.load("audio/The Dark Amulet.mp3")),
+        PlaybackSettings::LOOP,
+    ));
 }
 
 fn discover_levels() -> Vec<PathBuf> {
