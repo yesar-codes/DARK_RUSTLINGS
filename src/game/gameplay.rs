@@ -215,7 +215,6 @@ pub(crate) fn handle_game_over_buttons(
                 *color = BackgroundColor(Color::srgb_u8(52, 152, 219));
 
                 if retry.is_some() {
-                    current_level.0 = 0;
                     level::despawn_level_entities(&mut commands, &level_entities);
                     let spawn = level::spawn_level_at_index(
                         &mut commands,
@@ -474,7 +473,6 @@ pub(crate) fn handle_pause_buttons(
 
                 if retry.is_some() {
                     pause_state.paused = false;
-                    current_level.0 = 0;
                     level::despawn_level_entities(&mut commands, &level_entities);
                     let spawn = level::spawn_level_at_index(
                         &mut commands,
