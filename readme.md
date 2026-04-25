@@ -1,6 +1,6 @@
 ## Dark Rustlings
 
-This project now starts with a single isometric top-down labyrinth level.
+This project starts in a dark isometric labyrinth and now includes level progression.
 
 ### Run
 
@@ -16,7 +16,17 @@ cargo run
 
 ### Level Format
 
-The first level file is `resources/levels/level_01.ron`.
+Level files live in `resources/levels/` (currently `level_01.ron` and `level_02.ron`).
 
 - `#` = wall tile
 - `.` = floor/walkable tile
+- `S` = light switch tile
+- `E` = exit tile
+
+### Rules
+
+- You have 30 seconds to find the switch (`S`) or reach the exit (`E`).
+- Exiting advances to the next level.
+- Exiting on the final level shows a win screen.
+- If the timer reaches zero before success, a game-over screen is shown.
+- The countdown is displayed in the upper-right corner.

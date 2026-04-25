@@ -2,6 +2,7 @@ use bevy::math::primitives::Rectangle;
 use bevy::prelude::*;
 
 use crate::game::camera::MainCamera;
+use crate::game::gameplay::LevelFlow;
 use crate::game::level::{LevelCollision, PlayerSpawnPoint};
 
 #[derive(Component)]
@@ -20,7 +21,7 @@ pub(crate) struct Velocity(pub Vec2);
 
 #[derive(Component)]
 pub(crate) struct PlayerCollider {
-    radius: f32,
+    pub(crate) radius: f32,
 }
 
 pub(crate) fn spawn_player(
@@ -74,6 +75,7 @@ pub(crate) fn spawn_player(
 pub(crate) fn move_player(
     keyboard: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
+    flow: Option<Res<LevelFlow>>,
     collision: Option<Res<LevelCollision>>,
     camera_query: Query<&GlobalTransform, With<MainCamera>>,
     mut player_query: Query<
@@ -81,6 +83,10 @@ pub(crate) fn move_player(
         With<Player>,
     >,
 ) {
+    if flow.as_deref().is_some_and(|flow| flow.game_over) {
+        return;
+    }
+
     let delta_seconds = time.delta_secs();
     if delta_seconds <= 0.0 {
         return;

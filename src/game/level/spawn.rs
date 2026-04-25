@@ -6,6 +6,9 @@ use super::data::LevelData;
 #[derive(Component)]
 pub struct WallBlock;
 
+#[derive(Component)]
+pub struct LevelEntity;
+
 #[derive(Resource, Debug, Clone)]
 pub struct PlayerSpawnPoint(pub Vec3);
 
@@ -13,6 +16,8 @@ pub struct PlayerSpawnPoint(pub Vec3);
 pub struct LevelCollision {
     pub wall_centers: Vec<Vec2>,
     pub wall_half_extents: Vec2,
+    pub switch_center: Option<Vec2>,
+    pub exit_center: Option<Vec2>,
 }
 
 pub fn spawn_level(
@@ -20,27 +25,27 @@ pub fn spawn_level(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     level: &LevelData,
-) {
+) -> Option<Vec3> {
     if level.rows.is_empty() {
         warn!("Level '{}' has no rows to spawn", level.name);
-        return;
+        return None;
     }
 
     let row_width = level.width();
     if row_width == 0 {
         warn!("Level '{}' rows are empty", level.name);
-        return;
+        return None;
     }
 
     if level.rows.iter().any(|row| row.chars().count() != row_width) {
         warn!("Level '{}' has inconsistent row widths", level.name);
-        return;
+        return None;
     }
 
     let tile_size_x = (level.tile_width / 32.0).max(0.5);
     let tile_size_z = (level.tile_height / 16.0).max(0.5);
     let floor_height = 0.1;
-    let wall_height = 2.1;
+    let wall_height = 1.55;
     let wall_scale = 0.95;
 
     let floor_mesh = meshes.add(Mesh::from(Cuboid::new(tile_size_x, floor_height, tile_size_z)));
@@ -51,15 +56,40 @@ pub fn spawn_level(
     )));
 
     let floor_material = materials.add(StandardMaterial {
-        base_color: Color::srgb_u8(54, 61, 74),
-        perceptual_roughness: 0.95,
+        base_color: Color::srgb_u8(168, 172, 178),
+        perceptual_roughness: 0.98,
+        metallic: 0.0,
         ..default()
     });
 
     let wall_material = materials.add(StandardMaterial {
-        base_color: Color::srgb_u8(77, 77, 77),
-        perceptual_roughness: 0.95,
-        metallic: 0.0,
+        // Keep walls visually present while revealing paths behind foreground tiles.
+        base_color: Color::srgba_u8(34, 44, 58, 170),
+        perceptual_roughness: 0.72,
+        metallic: 0.03,
+        alpha_mode: AlphaMode::Blend,
+        ..default()
+    });
+
+    let switch_mesh = meshes.add(Mesh::from(Cuboid::new(
+        tile_size_x * 0.5,
+        0.35,
+        tile_size_z * 0.5,
+    )));
+    let switch_material = materials.add(StandardMaterial {
+        base_color: Color::srgb_u8(255, 214, 102),
+        emissive: Color::srgb_u8(255, 214, 102).into(),
+        ..default()
+    });
+
+    let exit_mesh = meshes.add(Mesh::from(Cuboid::new(
+        tile_size_x * 0.7,
+        0.25,
+        tile_size_z * 0.7,
+    )));
+    let exit_material = materials.add(StandardMaterial {
+        base_color: Color::srgb_u8(84, 160, 255),
+        emissive: Color::srgb_u8(84, 160, 255).into(),
         ..default()
     });
 
@@ -67,6 +97,9 @@ pub fn spawn_level(
     let center_z = (level.height() as f32 - 1.0) * tile_size_z * 0.5;
     let mut wall_centers = Vec::new();
     let mut player_spawn = None;
+    let mut fallback_spawn = None;
+    let mut switch_center = None;
+    let mut exit_center = None;
 
     for (row_index, row) in level.rows.iter().enumerate() {
         for (col_index, tile) in row.chars().enumerate() {
@@ -74,31 +107,63 @@ pub fn spawn_level(
             let z = row_index as f32 * tile_size_z - center_z;
 
             commands.spawn((
+                LevelEntity,
                 Mesh3d(floor_mesh.clone()),
                 MeshMaterial3d(floor_material.clone()),
                 Transform::from_xyz(x, floor_height * 0.5, z),
             ));
 
+            if tile != '#' && fallback_spawn.is_none() {
+                fallback_spawn = Some(Vec3::new(x, floor_height, z));
+            }
+
             if tile == '#' {
                 wall_centers.push(Vec2::new(x, z));
                 commands.spawn((
+                    LevelEntity,
                     WallBlock,
                     Mesh3d(wall_mesh.clone()),
                     MeshMaterial3d(wall_material.clone()),
                     Transform::from_xyz(x, floor_height + wall_height * 0.5, z),
                 ));
-            } else if player_spawn.is_none() {
+            } else if tile == 'S' {
+                switch_center = Some(Vec2::new(x, z));
+                commands.spawn((
+                    LevelEntity,
+                    Mesh3d(switch_mesh.clone()),
+                    MeshMaterial3d(switch_material.clone()),
+                    Transform::from_xyz(x, floor_height + 0.18, z),
+                ));
+            } else if tile == 'E' {
+                exit_center = Some(Vec2::new(x, z));
+                commands.spawn((
+                    LevelEntity,
+                    Mesh3d(exit_mesh.clone()),
+                    MeshMaterial3d(exit_material.clone()),
+                    Transform::from_xyz(x, floor_height + 0.12, z),
+                ));
+            } else if tile == '.' && player_spawn.is_none() {
                 player_spawn = Some(Vec3::new(x, floor_height, z));
             }
         }
     }
 
+    if switch_center.is_none() {
+        warn!("Level '{}' has no light switch tile ('S')", level.name);
+    }
+    if exit_center.is_none() {
+        warn!("Level '{}' has no exit tile ('E')", level.name);
+    }
+
     commands.insert_resource(LevelCollision {
         wall_centers,
         wall_half_extents: Vec2::new(tile_size_x * wall_scale * 0.5, tile_size_z * wall_scale * 0.5),
+        switch_center,
+        exit_center,
     });
 
-    commands.insert_resource(PlayerSpawnPoint(player_spawn.unwrap_or(Vec3::ZERO)));
+    let spawn_position = player_spawn.or(fallback_spawn).unwrap_or(Vec3::ZERO);
+    commands.insert_resource(PlayerSpawnPoint(spawn_position));
 
     info!(
         "Spawned level '{}' ({}x{})",
@@ -106,6 +171,8 @@ pub fn spawn_level(
         level.width(),
         level.height()
     );
+
+    Some(spawn_position)
 }
 
 
