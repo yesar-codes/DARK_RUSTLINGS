@@ -9,6 +9,9 @@ pub struct WallBlock;
 #[derive(Component)]
 pub struct LevelEntity;
 
+#[derive(Component)]
+pub struct SwitchLight;
+
 #[derive(Resource, Debug, Clone)]
 pub struct PlayerSpawnPoint(pub Vec3);
 
@@ -16,8 +19,10 @@ pub struct PlayerSpawnPoint(pub Vec3);
 pub struct LevelCollision {
     pub wall_centers: Vec<Vec2>,
     pub wall_half_extents: Vec2,
+    pub tile_size: Vec2,
     pub switch_center: Option<Vec2>,
     pub exit_center: Option<Vec2>,
+    pub exit_direction: Option<Vec2>,
 }
 
 pub fn spawn_level(
@@ -63,18 +68,16 @@ pub fn spawn_level(
     });
 
     let wall_material = materials.add(StandardMaterial {
-        // Keep walls visually present while revealing paths behind foreground tiles.
-        base_color: Color::srgba_u8(34, 44, 58, 170),
+        base_color: Color::srgb_u8(34, 44, 58),
         perceptual_roughness: 0.72,
         metallic: 0.03,
-        alpha_mode: AlphaMode::Blend,
         ..default()
     });
 
     let switch_mesh = meshes.add(Mesh::from(Cuboid::new(
-        tile_size_x * 0.5,
-        0.35,
-        tile_size_z * 0.5,
+        tile_size_x * 0.7,
+        0.25,
+        tile_size_z * 0.7,
     )));
     let switch_material = materials.add(StandardMaterial {
         base_color: Color::srgb_u8(255, 214, 102),
@@ -95,11 +98,17 @@ pub fn spawn_level(
 
     let center_x = (row_width as f32 - 1.0) * tile_size_x * 0.5;
     let center_z = (level.height() as f32 - 1.0) * tile_size_z * 0.5;
+    let level_width_world = row_width as f32 * tile_size_x;
+    let level_depth_world = level.height() as f32 * tile_size_z;
+    let level_radius = 0.5 * (level_width_world * level_width_world + level_depth_world * level_depth_world).sqrt();
+    let central_light_range = (level_radius * 1.35).max(18.0);
+    let central_light_height = floor_height + wall_height + (level_radius * 0.45).max(3.0);
     let mut wall_centers = Vec::new();
     let mut player_spawn = None;
     let mut fallback_spawn = None;
     let mut switch_center = None;
     let mut exit_center = None;
+    let mut exit_direction = None;
 
     for (row_index, row) in level.rows.iter().enumerate() {
         for (col_index, tile) in row.chars().enumerate() {
@@ -135,14 +144,34 @@ pub fn spawn_level(
                     Transform::from_xyz(x, floor_height + 0.18, z),
                 ));
             } else if tile == 'E' {
-                exit_center = Some(Vec2::new(x, z));
+                let border_direction = if col_index == 0 {
+                    Some(Vec2::new(-1.0, 0.0))
+                } else if col_index + 1 == row_width {
+                    Some(Vec2::new(1.0, 0.0))
+                } else if row_index == 0 {
+                    Some(Vec2::new(0.0, -1.0))
+                } else if row_index + 1 == level.height() {
+                    Some(Vec2::new(0.0, 1.0))
+                } else {
+                    None
+                };
+
+                if border_direction.is_none() {
+                    warn!("Level '{}' has an exit tile ('E') that is not on the border", level.name);
+                }
+
+                if exit_center.is_none() && border_direction.is_some() {
+                    exit_center = Some(Vec2::new(x, z));
+                    exit_direction = border_direction;
+                }
+
                 commands.spawn((
                     LevelEntity,
                     Mesh3d(exit_mesh.clone()),
                     MeshMaterial3d(exit_material.clone()),
                     Transform::from_xyz(x, floor_height + 0.12, z),
                 ));
-            } else if tile == '.' && player_spawn.is_none() {
+            } else if tile == 'P' && player_spawn.is_none() {
                 player_spawn = Some(Vec3::new(x, floor_height, z));
             }
         }
@@ -152,14 +181,35 @@ pub fn spawn_level(
         warn!("Level '{}' has no light switch tile ('S')", level.name);
     }
     if exit_center.is_none() {
-        warn!("Level '{}' has no exit tile ('E')", level.name);
+        warn!("Level '{}' has no border exit tile ('E')", level.name);
+    }
+    if player_spawn.is_none() {
+        warn!("Level '{}' has no player start tile ('P')", level.name);
+    }
+
+    if switch_center.is_some() {
+        commands.spawn((
+            LevelEntity,
+            SwitchLight,
+            PointLight {
+                intensity: 0.0,
+                range: central_light_range,
+                color: Color::srgb_u8(255, 236, 196),
+                radius: 0.25,
+                shadows_enabled: true,
+                ..default()
+            },
+            Transform::from_xyz(0.0, central_light_height, 0.0),
+        ));
     }
 
     commands.insert_resource(LevelCollision {
         wall_centers,
         wall_half_extents: Vec2::new(tile_size_x * wall_scale * 0.5, tile_size_z * wall_scale * 0.5),
+        tile_size: Vec2::new(tile_size_x, tile_size_z),
         switch_center,
         exit_center,
+        exit_direction,
     });
 
     let spawn_position = player_spawn.or(fallback_spawn).unwrap_or(Vec3::ZERO);

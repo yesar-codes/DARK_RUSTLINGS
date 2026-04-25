@@ -2,11 +2,17 @@ use bevy::app::AppExit;
 use bevy::prelude::*;
 
 use crate::game::level::{
-    self, CurrentLevelIndex, LevelCollision, LevelEntity, LevelList,
+    self, CurrentLevelIndex, LevelCollision, LevelEntity, LevelList, SwitchLight,
 };
 use crate::game::player::{Player, PlayerCollider, Velocity};
 
 const LEVEL_TIME_LIMIT_SECONDS: f32 = 30.0;
+const SWITCH_LIGHT_INTENSITY: f32 = 160_000.0;
+
+#[derive(Resource, Default)]
+pub struct PauseState {
+    pub paused: bool,
+}
 
 #[derive(Resource)]
 pub struct LevelFlow {
@@ -31,10 +37,19 @@ impl Default for LevelFlow {
 pub(crate) struct GameOverUiRoot;
 
 #[derive(Component)]
+pub(crate) struct PauseUiRoot;
+
+#[derive(Component)]
 pub(crate) struct RetryButton;
 
 #[derive(Component)]
+pub(crate) struct PauseRetryButton;
+
+#[derive(Component)]
 pub(crate) struct QuitButton;
+
+#[derive(Component)]
+pub(crate) struct PauseQuitButton;
 
 #[derive(Component)]
 pub(crate) struct TimerText;
@@ -99,10 +114,12 @@ pub(crate) fn update_level_flow(
     mut current_level: ResMut<CurrentLevelIndex>,
     collision: Option<Res<LevelCollision>>,
     level_entities: Query<Entity, With<LevelEntity>>,
+    mut switch_lights: Query<&mut PointLight, With<SwitchLight>>,
     mut player_query: Query<(&mut Transform, &PlayerCollider, &mut Velocity), With<Player>>,
     overlay_query: Query<Entity, With<GameOverUiRoot>>,
+    pause_state: Res<PauseState>,
 ) {
-    if flow.game_over {
+    if flow.game_over || pause_state.paused {
         return;
     }
 
@@ -119,15 +136,28 @@ pub(crate) fn update_level_flow(
             if let Some(switch_center) = collision.switch_center {
                 if player_pos.distance_squared(switch_center) <= trigger_distance_sq {
                     flow.lights_on = true;
-                    ambient_light.color = Color::WHITE;
-                    ambient_light.brightness = 55.0;
+                    ambient_light.color = Color::srgb_u8(225, 230, 240);
+                    ambient_light.brightness = 0.35;
+                    for mut switch_light in &mut switch_lights {
+                        switch_light.intensity = SWITCH_LIGHT_INTENSITY + switch_light.range * 5_000.0;
+                    }
                     info!("Light switch activated");
                 }
             }
         }
 
-        if let Some(exit_center) = collision.exit_center {
-            if player_pos.distance_squared(exit_center) <= trigger_distance_sq {
+        if let (Some(exit_center), Some(exit_direction)) = (collision.exit_center, collision.exit_direction) {
+            let to_exit = player_pos - exit_center;
+            let along_exit = to_exit.dot(exit_direction);
+            let lateral = to_exit - exit_direction * along_exit;
+            let lateral_limit = if exit_direction.x.abs() > 0.5 {
+                collision.tile_size.y * 0.55 + collider.radius
+            } else {
+                collision.tile_size.x * 0.55 + collider.radius
+            };
+
+            let moving_through_exit = velocity.0.dot(exit_direction) > 0.0;
+            if moving_through_exit && along_exit >= -0.05 && lateral.length() <= lateral_limit {
                 if current_level.0 + 1 < level_list.0.len() {
                     current_level.0 += 1;
                     level::despawn_level_entities(&mut commands, &level_entities);
@@ -139,8 +169,8 @@ pub(crate) fn update_level_flow(
                     )
                     .unwrap_or(Vec3::ZERO);
 
-                    player_transform.translation = spawn + Vec3::Y * 0.8;
-                    velocity.0 = Vec2::ZERO;
+                    let carry_forward = Vec3::new(exit_direction.x, 0.0, exit_direction.y) * (collider.radius + 0.2);
+                    player_transform.translation = spawn + Vec3::Y * 0.8 + carry_forward;
                     reset_for_new_level(&mut flow, &mut ambient_light);
                 } else {
                     trigger_win_screen(&mut commands, &mut flow, &overlay_query);
@@ -352,5 +382,131 @@ fn spawn_menu_button<T: Component>(parent: &mut ChildSpawnerCommands, label: &st
             },
             TextColor(Color::WHITE),
         ));
+}
+
+pub(crate) fn toggle_pause_menu(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut commands: Commands,
+    mut pause_state: ResMut<PauseState>,
+    pause_ui_query: Query<Entity, With<PauseUiRoot>>,
+) {
+    if !keyboard.just_pressed(KeyCode::Escape) {
+        return;
+    }
+
+    if pause_state.paused {
+        pause_state.paused = false;
+        if let Ok(pause_ui) = pause_ui_query.single() {
+            commands.entity(pause_ui).despawn();
+        }
+    } else {
+        pause_state.paused = true;
+        spawn_pause_menu(&mut commands);
+    }
+}
+
+fn spawn_pause_menu(commands: &mut Commands) {
+    commands
+        .spawn((
+            PauseUiRoot,
+            Node {
+                position_type: PositionType::Absolute,
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(16.0),
+                ..default()
+            },
+            BackgroundColor(Color::srgba_u8(0, 0, 0, 210)),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new("Paused"),
+                TextFont {
+                    font_size: 56.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+            ));
+
+            parent.spawn((
+                Text::new("Press Escape to Resume"),
+                TextFont {
+                    font_size: 20.0,
+                    ..default()
+                },
+                TextColor(Color::srgb_u8(210, 210, 210)),
+            ));
+
+            spawn_menu_button(parent, "Retry Level", PauseRetryButton);
+            spawn_menu_button(parent, "Quit", PauseQuitButton);
+        });
+}
+
+pub(crate) fn handle_pause_buttons(
+    mut commands: Commands,
+    mut interactions: Query<
+        (
+            &Interaction,
+            &mut BackgroundColor,
+            Option<&PauseRetryButton>,
+            Option<&PauseQuitButton>,
+        ),
+        (Changed<Interaction>, With<Button>),
+    >,
+    mut app_exit: MessageWriter<AppExit>,
+    mut pause_state: ResMut<PauseState>,
+    mut flow: ResMut<LevelFlow>,
+    mut ambient_light: ResMut<GlobalAmbientLight>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut current_level: ResMut<CurrentLevelIndex>,
+    level_entities: Query<Entity, With<LevelEntity>>,
+    mut player_query: Query<(&mut Transform, &mut Velocity), With<Player>>,
+    pause_ui_query: Query<Entity, With<PauseUiRoot>>,
+) {
+    for (interaction, mut color, retry, quit) in &mut interactions {
+        match *interaction {
+            Interaction::Pressed => {
+                *color = BackgroundColor(Color::srgb_u8(52, 152, 219));
+
+                if retry.is_some() {
+                    pause_state.paused = false;
+                    current_level.0 = 0;
+                    level::despawn_level_entities(&mut commands, &level_entities);
+                    let spawn = level::spawn_level_at_index(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        current_level.0,
+                    )
+                    .unwrap_or(Vec3::ZERO);
+
+                    reset_for_new_level(&mut flow, &mut ambient_light);
+
+                    if let Ok((mut player_transform, mut velocity)) = player_query.single_mut() {
+                        player_transform.translation = spawn + Vec3::Y * 0.8;
+                        velocity.0 = Vec2::ZERO;
+                    }
+
+                    if let Ok(pause_ui) = pause_ui_query.single() {
+                        commands.entity(pause_ui).despawn();
+                    }
+                }
+
+                if quit.is_some() {
+                    app_exit.write(AppExit::Success);
+                }
+            }
+            Interaction::Hovered => {
+                *color = BackgroundColor(Color::srgb_u8(85, 95, 105));
+            }
+            Interaction::None => {
+                *color = BackgroundColor(Color::srgb_u8(66, 73, 73));
+            }
+        }
+    }
 }
 

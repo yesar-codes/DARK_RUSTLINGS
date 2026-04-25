@@ -57,6 +57,8 @@ pub(crate) fn spawn_player(
     .with_children(|parent| {
         parent.spawn((
             PointLight {
+                intensity: 20_400.0,
+                range: 4.0,
                 intensity: 2_800.0,
                 range: 10.5,
                 shadows_enabled: true,
@@ -71,6 +73,7 @@ pub(crate) fn move_player(
     keyboard: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
     flow: Option<Res<LevelFlow>>,
+    pause_state: Res<PauseState>,
     collision: Option<Res<LevelCollision>>,
     camera_query: Query<&GlobalTransform, With<MainCamera>>,
     mut player_query: Query<
@@ -78,7 +81,7 @@ pub(crate) fn move_player(
         With<Player>,
     >,
 ) {
-    if flow.as_deref().is_some_and(|flow| flow.game_over) {
+    if flow.as_deref().is_some_and(|flow| flow.game_over) || pause_state.paused {
         return;
     }
 
