@@ -7,6 +7,7 @@ name = "DARK_RUSTLINGS"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "rand",
  "ron 0.10.1",
  "serde",
 ]

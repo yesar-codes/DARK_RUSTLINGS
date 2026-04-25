@@ -173,7 +173,19 @@ pub(crate) fn update_level_flow(
                     player_transform.translation = spawn + Vec3::Y * 0.8 + carry_forward;
                     reset_for_new_level(&mut flow, &mut ambient_light);
                 } else {
-                    trigger_win_screen(&mut commands, &mut flow, &overlay_query);
+                    current_level.0 += 1;
+                    level::despawn_level_entities(&mut commands, &level_entities);
+                    let spawn = level::spawn_level_at_index(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        current_level.0,
+                    )
+                        .unwrap_or(Vec3::ZERO);
+
+                    let carry_forward = Vec3::new(exit_direction.x, 0.0, exit_direction.y) * (collider.radius + 0.2);
+                    player_transform.translation = spawn + Vec3::Y * 0.8 + carry_forward;
+                    reset_for_new_level(&mut flow, &mut ambient_light);
                 }
                 return;
             }
