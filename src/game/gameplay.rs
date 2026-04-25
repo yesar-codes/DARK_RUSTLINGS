@@ -8,6 +8,11 @@ use crate::game::player::{Player, PlayerCollider, Velocity};
 
 const LEVEL_TIME_LIMIT_SECONDS: f32 = 30.0;
 
+#[derive(Resource, Default)]
+pub struct PauseState {
+    pub paused: bool,
+}
+
 #[derive(Resource)]
 pub struct LevelFlow {
     pub lights_on: bool,
@@ -31,10 +36,19 @@ impl Default for LevelFlow {
 pub(crate) struct GameOverUiRoot;
 
 #[derive(Component)]
+pub(crate) struct PauseUiRoot;
+
+#[derive(Component)]
 pub(crate) struct RetryButton;
 
 #[derive(Component)]
+pub(crate) struct PauseRetryButton;
+
+#[derive(Component)]
 pub(crate) struct QuitButton;
+
+#[derive(Component)]
+pub(crate) struct PauseQuitButton;
 
 #[derive(Component)]
 pub(crate) struct TimerText;
@@ -101,8 +115,9 @@ pub(crate) fn update_level_flow(
     level_entities: Query<Entity, With<LevelEntity>>,
     mut player_query: Query<(&mut Transform, &PlayerCollider, &mut Velocity), With<Player>>,
     overlay_query: Query<Entity, With<GameOverUiRoot>>,
+    pause_state: Res<PauseState>,
 ) {
-    if flow.game_over {
+    if flow.game_over || pause_state.paused {
         return;
     }
 
@@ -352,5 +367,131 @@ fn spawn_menu_button<T: Component>(parent: &mut ChildSpawnerCommands, label: &st
             },
             TextColor(Color::WHITE),
         ));
+}
+
+pub(crate) fn toggle_pause_menu(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut commands: Commands,
+    mut pause_state: ResMut<PauseState>,
+    pause_ui_query: Query<Entity, With<PauseUiRoot>>,
+) {
+    if !keyboard.just_pressed(KeyCode::Escape) {
+        return;
+    }
+
+    if pause_state.paused {
+        pause_state.paused = false;
+        if let Ok(pause_ui) = pause_ui_query.single() {
+            commands.entity(pause_ui).despawn();
+        }
+    } else {
+        pause_state.paused = true;
+        spawn_pause_menu(&mut commands);
+    }
+}
+
+fn spawn_pause_menu(commands: &mut Commands) {
+    commands
+        .spawn((
+            PauseUiRoot,
+            Node {
+                position_type: PositionType::Absolute,
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(16.0),
+                ..default()
+            },
+            BackgroundColor(Color::srgba_u8(0, 0, 0, 210)),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new("Paused"),
+                TextFont {
+                    font_size: 56.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+            ));
+
+            parent.spawn((
+                Text::new("Press Escape to Resume"),
+                TextFont {
+                    font_size: 20.0,
+                    ..default()
+                },
+                TextColor(Color::srgb_u8(210, 210, 210)),
+            ));
+
+            spawn_menu_button(parent, "Retry Level", PauseRetryButton);
+            spawn_menu_button(parent, "Quit", PauseQuitButton);
+        });
+}
+
+pub(crate) fn handle_pause_buttons(
+    mut commands: Commands,
+    mut interactions: Query<
+        (
+            &Interaction,
+            &mut BackgroundColor,
+            Option<&PauseRetryButton>,
+            Option<&PauseQuitButton>,
+        ),
+        (Changed<Interaction>, With<Button>),
+    >,
+    mut app_exit: MessageWriter<AppExit>,
+    mut pause_state: ResMut<PauseState>,
+    mut flow: ResMut<LevelFlow>,
+    mut ambient_light: ResMut<GlobalAmbientLight>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut current_level: ResMut<CurrentLevelIndex>,
+    level_entities: Query<Entity, With<LevelEntity>>,
+    mut player_query: Query<(&mut Transform, &mut Velocity), With<Player>>,
+    pause_ui_query: Query<Entity, With<PauseUiRoot>>,
+) {
+    for (interaction, mut color, retry, quit) in &mut interactions {
+        match *interaction {
+            Interaction::Pressed => {
+                *color = BackgroundColor(Color::srgb_u8(52, 152, 219));
+
+                if retry.is_some() {
+                    pause_state.paused = false;
+                    current_level.0 = 0;
+                    level::despawn_level_entities(&mut commands, &level_entities);
+                    let spawn = level::spawn_level_at_index(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        current_level.0,
+                    )
+                    .unwrap_or(Vec3::ZERO);
+
+                    reset_for_new_level(&mut flow, &mut ambient_light);
+
+                    if let Ok((mut player_transform, mut velocity)) = player_query.single_mut() {
+                        player_transform.translation = spawn + Vec3::Y * 0.8;
+                        velocity.0 = Vec2::ZERO;
+                    }
+
+                    if let Ok(pause_ui) = pause_ui_query.single() {
+                        commands.entity(pause_ui).despawn();
+                    }
+                }
+
+                if quit.is_some() {
+                    app_exit.write(AppExit::Success);
+                }
+            }
+            Interaction::Hovered => {
+                *color = BackgroundColor(Color::srgb_u8(85, 95, 105));
+            }
+            Interaction::None => {
+                *color = BackgroundColor(Color::srgb_u8(66, 73, 73));
+            }
+        }
+    }
 }
 

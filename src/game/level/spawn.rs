@@ -63,18 +63,16 @@ pub fn spawn_level(
     });
 
     let wall_material = materials.add(StandardMaterial {
-        // Keep walls visually present while revealing paths behind foreground tiles.
-        base_color: Color::srgba_u8(34, 44, 58, 170),
+        base_color: Color::srgb_u8(34, 44, 58),
         perceptual_roughness: 0.72,
         metallic: 0.03,
-        alpha_mode: AlphaMode::Blend,
         ..default()
     });
 
     let switch_mesh = meshes.add(Mesh::from(Cuboid::new(
-        tile_size_x * 0.5,
-        0.35,
-        tile_size_z * 0.5,
+        tile_size_x * 0.7,
+        0.25,
+        tile_size_z * 0.7,
     )));
     let switch_material = materials.add(StandardMaterial {
         base_color: Color::srgb_u8(255, 214, 102),
