@@ -57,7 +57,7 @@ pub(crate) fn spawn_player(
     .with_children(|parent| {
         parent.spawn((
             PointLight {
-                intensity: 20_400.0,
+                intensity: 20_4000.0,
                 range: 4.0,
                 intensity: 2_800.0,
                 range: 10.5,

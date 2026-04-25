@@ -1,6 +1,7 @@
 mod data;
 mod load;
 mod spawn;
+mod generate;
 
 pub use spawn::{LevelCollision, LevelEntity, PlayerSpawnPoint, SwitchLight};
 
@@ -37,22 +38,29 @@ pub fn spawn_level_at_index(
     materials: &mut Assets<StandardMaterial>,
     level_index: usize,
 ) -> Option<Vec3> {
+
     let level_list = discover_levels();
 
-    if level_index >= level_list.len() {
-        warn!("Requested invalid level index {level_index}");
-        return None;
+    // premade levels
+    if level_index < level_list.len() {
+        let level_path = &level_list[level_index];
+
+        return match load::load_level(level_path.to_str().unwrap_or("")) {
+            Ok(level) => spawn::spawn_level(commands, meshes, materials, &level),
+            Err(error) => {
+                error!("Failed to load level: {error}");
+                None
+            }
+        };
     }
 
-    let level_path = &level_list[level_index];
+    let level = generate::generate_level(
+        "Generated Level",
+        64.0,
+        32.0,
+    );
 
-    match load::load_level(level_path.to_str().unwrap_or("")) {
-        Ok(level) => spawn::spawn_level(commands, meshes, materials, &level),
-        Err(error) => {
-            error!("Failed to load level: {error}");
-            None
-        }
-    }
+    return spawn::spawn_level(commands, meshes, materials, &level);
 }
 
 fn discover_levels() -> Vec<PathBuf> {
