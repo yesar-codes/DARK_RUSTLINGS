@@ -22,6 +22,7 @@ impl Plugin for GamePlugin {
         );
         app.add_systems(Startup, player::spawn_player.after(level::spawn_initial_level));
         app.add_systems(Startup, gameplay::spawn_timer_ui);
+        app.add_systems(Startup, gameplay::spawn_level_ui);
         app.add_systems(
             Update,
             (
@@ -31,6 +32,7 @@ impl Plugin for GamePlugin {
                 gameplay::update_level_flow.after(player::move_player),
                 camera::follow_player.after(gameplay::update_level_flow),
                 player::face_camera,
+                gameplay::update_level_ui,
                 gameplay::update_timer_ui,
                 gameplay::handle_game_over_buttons,
                 gameplay::handle_pause_buttons,
