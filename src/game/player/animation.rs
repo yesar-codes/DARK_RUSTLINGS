@@ -1,7 +1,7 @@
 use std::time::Duration;
 use bevy::prelude::*;
 
-const SOLDIER_MODEL_PATH: &str = "resources/models/Soldier.glb";
+const SOLDIER_MODEL_PATH: &str = "models/Soldier.glb";
 
 #[derive(Resource)]
 pub struct SoldierAnimations {
