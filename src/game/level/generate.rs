@@ -81,10 +81,26 @@ pub fn ascii_to_strings(rows: Vec<Vec<char>>) -> Vec<String> {
 }
 
 pub fn generate_level(name: &str, tile_width: f32, tile_height: f32, level_index: usize) -> LevelData {
-    const BASE_WIDTH: usize = 15;
-    const BASE_HEIGHT: usize = 12;
-    let width_difficulty = level_index / 3 - 1;
-    let height_difficulty = level_index / 3;
+    const BASE_WIDTH: usize = 13;
+    const BASE_HEIGHT: usize = 11;
+
+    /*
+        TODO: level count shouldn't be a constant
+     */
+    const LEVEL_COUNT: usize = 4;
+
+    // field gets bigger after 2 wins
+    let mut width_difficulty = level_index - LEVEL_COUNT;
+    let mut height_difficulty = level_index - LEVEL_COUNT;
+    if (level_index + BASE_WIDTH) % 2 == 0 {
+        width_difficulty -= 1;
+        height_difficulty -= 1;
+    }
+    if level_index % 4 == 1 {
+        height_difficulty += 2;
+    } else if level_index % 4 == 3 {
+        width_difficulty += 2;
+    }
     let mut rows = generate_maze(BASE_WIDTH + width_difficulty, BASE_HEIGHT + height_difficulty);
 
     place_specials(&mut rows);
