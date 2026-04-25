@@ -1,14 +1,9 @@
-pub mod animation;
-
+use bevy::math::primitives::Rectangle;
 use bevy::prelude::*;
 
 use crate::game::camera::MainCamera;
-use crate::game::gameplay::LevelFlow;
+use crate::game::gameplay::{LevelFlow, PauseState};
 use crate::game::level::{LevelCollision, PlayerSpawnPoint};
-use animation::load_soldier_model;
-
-// Re-export animation functions for use in GamePlugin
-pub use animation::{init_soldier_animations, setup_animations_on_load};
 
 #[derive(Component)]
 pub struct Player;
@@ -32,14 +27,22 @@ pub(crate) struct PlayerCollider {
 pub(crate) fn spawn_player(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
     spawn_point: Option<Res<PlayerSpawnPoint>>,
 ) {
     let spawn = spawn_point
         .map(|point| point.0 + Vec3::Y * 0.8)
         .unwrap_or(Vec3::new(0.0, 0.8, 0.0));
 
-    // Load the Soldier model
-    let soldier_scene = load_soldier_model(&asset_server);
+    let player_mesh = meshes.add(Mesh::from(Rectangle::new(1.5, 2.5)));
+    let player_material = materials.add(StandardMaterial {
+        base_color_texture: Some(asset_server.load("sprites/amogus.png")),
+        base_color: Color::WHITE,
+        unlit: true,
+        alpha_mode: AlphaMode::Blend,
+        ..default()
+    });
 
     commands.spawn((
         Player,
@@ -51,7 +54,8 @@ pub(crate) fn spawn_player(
         },
         Velocity::default(),
         PlayerCollider { radius: 0.30 },
-        SceneRoot(soldier_scene),
+        Mesh3d(player_mesh),
+        MeshMaterial3d(player_material),
         Transform::from_translation(spawn),
     ))
     .with_children(|parent| {
@@ -59,8 +63,6 @@ pub(crate) fn spawn_player(
             PointLight {
                 intensity: 20_4000.0,
                 range: 4.0,
-                intensity: 2_800.0,
-                range: 10.5,
                 shadows_enabled: true,
                 ..default()
             },
