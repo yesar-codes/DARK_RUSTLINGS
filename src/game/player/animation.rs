@@ -16,13 +16,22 @@ pub fn init_soldier_animations(
     mut graphs: ResMut<Assets<AnimationGraph>>,
 ) {
     // Try to load available animations from the Soldier model
-    // Adjust the animation indices if your model has different animations
-    let animation_clips = vec![
-        asset_server.load(GltfAssetLabel::Animation(0).from_asset(SOLDIER_MODEL_PATH)),
-    ];
+    // Most GLB files have animations stored as separate clips
+    // We'll try to load multiple animation indices
+    let mut animation_clips = vec![];
+
+    // Try to load animations 0-5 (common range for GLB models)
+    for i in 0..6 {
+        animation_clips.push(
+            asset_server.load(GltfAssetLabel::Animation(i).from_asset(SOLDIER_MODEL_PATH)),
+        );
+    }
 
     let (graph, node_indices) = AnimationGraph::from_clips(animation_clips);
     let graph_handle = graphs.add(graph);
+
+    // Log how many animations were found
+    info!("Loaded {} animations from Soldier model", node_indices.len());
 
     commands.insert_resource(SoldierAnimations {
         animations: node_indices,
@@ -45,6 +54,7 @@ pub fn setup_animations_on_load(
         let mut transitions = AnimationTransitions::new();
 
         if !animations.animations.is_empty() {
+            info!("Playing first available animation (index 0)");
             transitions
                 .play(&mut player, animations.animations[0], Duration::ZERO)
                 .repeat();
@@ -53,6 +63,8 @@ pub fn setup_animations_on_load(
                 .entity(entity)
                 .insert(AnimationGraphHandle(animations.graph_handle.clone()))
                 .insert(transitions);
+        } else {
+            warn!("No animations found in Soldier model!");
         }
     }
 }

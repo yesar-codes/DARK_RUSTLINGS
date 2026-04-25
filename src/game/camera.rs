@@ -10,11 +10,11 @@ pub fn spawn_camera(mut commands: Commands) {
         Camera3d::default(),
         Projection::Orthographic(OrthographicProjection {
             scaling_mode: ScalingMode::FixedVertical {
-                viewport_height: 36.0,
+                viewport_height: 10.0,
             },
             ..OrthographicProjection::default_3d()
         }),
-        Transform::from_xyz(30.0, 30.0, 30.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Transform::from_xyz(8.0, 8.0, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
     ));
 }
 
