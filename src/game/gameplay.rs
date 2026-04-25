@@ -54,6 +54,9 @@ pub(crate) struct PauseQuitButton;
 #[derive(Component)]
 pub(crate) struct TimerText;
 
+#[derive(Component)]
+pub(crate) struct LevelText;
+
 pub(crate) fn spawn_timer_ui(mut commands: Commands) {
     commands
         .spawn((
@@ -75,6 +78,50 @@ pub(crate) fn spawn_timer_ui(mut commands: Commands) {
             },
             TextColor(Color::WHITE),
         ));
+}
+
+pub(crate) fn spawn_level_ui(mut commands: Commands) {
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Px(16.0),
+                left: Val::Px(20.0),
+                padding: UiRect::all(Val::Px(10.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba_u8(0, 0, 0, 120)),
+        ))
+        .with_child((
+            LevelText,
+            Text::new("Level 01"),
+            TextFont {
+                font_size: 24.0,
+                ..default()
+            },
+            TextColor(Color::WHITE),
+        ));
+}
+
+pub(crate) fn update_level_ui(
+    level_list: Res<LevelList>,
+    current_level: Res<CurrentLevelIndex>,
+    mut text_query: Query<&mut Text, With<LevelText>>,
+) {
+    let Ok(mut text) = text_query.single_mut() else {
+        return;
+    };
+
+    text.0 = format_current_level_label(current_level.0, level_list.0.len());
+}
+
+fn format_current_level_label(current_level_index: usize, premade_level_count: usize) -> String {
+    if current_level_index < premade_level_count {
+        return format!("Level {:02}", current_level_index + 1);
+    }
+
+    let generated_index = current_level_index + 1 - premade_level_count;
+    format!("Generated {:02}", generated_index)
 }
 
 pub(crate) fn update_timer_ui(
@@ -195,7 +242,7 @@ pub(crate) fn update_level_flow(
     if !flow.lights_on {
         flow.timer.tick(time.delta());
         if flow.timer.is_finished() {
-            trigger_game_over(&mut commands, &mut flow, &overlay_query);
+            trigger_game_over(&mut commands, &mut flow, &overlay_query, current_level.0);
         }
     }
 }
@@ -275,6 +322,7 @@ fn trigger_game_over(
     commands: &mut Commands,
     flow: &mut LevelFlow,
     overlay_query: &Query<Entity, With<GameOverUiRoot>>,
+    completed_levels_excluding_level_00: usize,
 ) {
     flow.game_over = true;
     flow.won = false;
@@ -314,6 +362,18 @@ fn trigger_game_over(
                     ..default()
                 },
                 TextColor(Color::srgb_u8(210, 210, 210)),
+            ));
+
+            parent.spawn((
+                Text::new(format!(
+                    "Completed levels: {}",
+                    completed_levels_excluding_level_00
+                )),
+                TextFont {
+                    font_size: 22.0,
+                    ..default()
+                },
+                TextColor(Color::srgb_u8(235, 235, 235)),
             ));
 
             spawn_menu_button(parent, "Retry", RetryButton);
