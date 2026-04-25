@@ -2,11 +2,12 @@ use bevy::app::AppExit;
 use bevy::prelude::*;
 
 use crate::game::level::{
-    self, CurrentLevelIndex, LevelCollision, LevelEntity, LevelList,
+    self, CurrentLevelIndex, LevelCollision, LevelEntity, LevelList, SwitchLight,
 };
 use crate::game::player::{Player, PlayerCollider, Velocity};
 
 const LEVEL_TIME_LIMIT_SECONDS: f32 = 30.0;
+const SWITCH_LIGHT_INTENSITY: f32 = 160_000.0;
 
 #[derive(Resource, Default)]
 pub struct PauseState {
@@ -113,6 +114,7 @@ pub(crate) fn update_level_flow(
     mut current_level: ResMut<CurrentLevelIndex>,
     collision: Option<Res<LevelCollision>>,
     level_entities: Query<Entity, With<LevelEntity>>,
+    mut switch_lights: Query<&mut PointLight, With<SwitchLight>>,
     mut player_query: Query<(&mut Transform, &PlayerCollider, &mut Velocity), With<Player>>,
     overlay_query: Query<Entity, With<GameOverUiRoot>>,
     pause_state: Res<PauseState>,
@@ -134,8 +136,11 @@ pub(crate) fn update_level_flow(
             if let Some(switch_center) = collision.switch_center {
                 if player_pos.distance_squared(switch_center) <= trigger_distance_sq {
                     flow.lights_on = true;
-                    ambient_light.color = Color::WHITE;
-                    ambient_light.brightness = 55.0;
+                    ambient_light.color = Color::srgb_u8(225, 230, 240);
+                    ambient_light.brightness = 0.35;
+                    for mut switch_light in &mut switch_lights {
+                        switch_light.intensity = SWITCH_LIGHT_INTENSITY + switch_light.range * 5_000.0;
+                    }
                     info!("Light switch activated");
                 }
             }

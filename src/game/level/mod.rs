@@ -2,7 +2,7 @@ mod data;
 mod load;
 mod spawn;
 
-pub use spawn::{LevelCollision, LevelEntity, PlayerSpawnPoint};
+pub use spawn::{LevelCollision, LevelEntity, PlayerSpawnPoint, SwitchLight};
 
 use bevy::prelude::*;
 use std::fs;

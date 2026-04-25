@@ -9,6 +9,9 @@ pub struct WallBlock;
 #[derive(Component)]
 pub struct LevelEntity;
 
+#[derive(Component)]
+pub struct SwitchLight;
+
 #[derive(Resource, Debug, Clone)]
 pub struct PlayerSpawnPoint(pub Vec3);
 
@@ -93,6 +96,11 @@ pub fn spawn_level(
 
     let center_x = (row_width as f32 - 1.0) * tile_size_x * 0.5;
     let center_z = (level.height() as f32 - 1.0) * tile_size_z * 0.5;
+    let level_width_world = row_width as f32 * tile_size_x;
+    let level_depth_world = level.height() as f32 * tile_size_z;
+    let level_radius = 0.5 * (level_width_world * level_width_world + level_depth_world * level_depth_world).sqrt();
+    let central_light_range = (level_radius * 1.35).max(18.0);
+    let central_light_height = floor_height + wall_height + (level_radius * 0.45).max(3.0);
     let mut wall_centers = Vec::new();
     let mut player_spawn = None;
     let mut fallback_spawn = None;
@@ -151,6 +159,22 @@ pub fn spawn_level(
     }
     if exit_center.is_none() {
         warn!("Level '{}' has no exit tile ('E')", level.name);
+    }
+
+    if switch_center.is_some() {
+        commands.spawn((
+            LevelEntity,
+            SwitchLight,
+            PointLight {
+                intensity: 0.0,
+                range: central_light_range,
+                color: Color::srgb_u8(255, 236, 196),
+                radius: 0.25,
+                shadows_enabled: true,
+                ..default()
+            },
+            Transform::from_xyz(0.0, central_light_height, 0.0),
+        ));
     }
 
     commands.insert_resource(LevelCollision {

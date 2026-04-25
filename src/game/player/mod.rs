@@ -61,9 +61,8 @@ pub(crate) fn spawn_player(
     .with_children(|parent| {
         parent.spawn((
             PointLight {
-                intensity: 20_800.0,
-                // Change this `range` value to adjust the radius of light around the player.
-                range: 10.5,
+                intensity: 20_400.0,
+                range: 4.0,
                 shadows_enabled: true,
                 ..default()
             },
