@@ -58,6 +58,7 @@ pub fn spawn_level_at_index(
         "Generated Level",
         64.0,
         32.0,
+        level_index,
     );
 
     return spawn::spawn_level(commands, meshes, materials, &level);

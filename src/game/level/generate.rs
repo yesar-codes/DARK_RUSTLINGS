@@ -1,5 +1,4 @@
 use std::collections::VecDeque;
-
 use rand::prelude::IndexedRandom;
 use rand::rng;
 
@@ -75,63 +74,18 @@ pub fn place_specials(rows: &mut Vec<Vec<char>>) -> (usize, usize) {
     (px, py)
 }
 
-fn find_farthest_point(
-    start: (usize, usize),
-    grid: &Vec<Vec<char>>,
-) -> (usize, usize) {
-    let h = grid.len();
-    let w = grid[0].len();
-
-    let mut visited = vec![vec![false; w]; h];
-    let mut queue = VecDeque::new();
-
-    queue.push_back((start, 0usize));
-    visited[start.1][start.0] = true;
-
-    let mut farthest = start;
-    let mut max_dist = 0;
-
-    while let Some(((x, y), dist)) = queue.pop_front() {
-        if dist > max_dist {
-            max_dist = dist;
-            farthest = (x, y);
-        }
-
-        let dirs = [(0,1),(1,0),(0,-1),(-1,0)];
-
-        for (dx, dy) in dirs {
-            let nx = x as isize + dx;
-            let ny = y as isize + dy;
-
-            if nx < 0 || ny < 0 {
-                continue;
-            }
-
-            let nx = nx as usize;
-            let ny = ny as usize;
-
-            if nx >= w || ny >= h {
-                continue;
-            }
-
-            if !visited[ny][nx] && grid[ny][nx] != '#' {
-                visited[ny][nx] = true;
-                queue.push_back(((nx, ny), dist + 1));
-            }
-        }
-    }
-
-    farthest
-}
-
 pub fn ascii_to_strings(rows: Vec<Vec<char>>) -> Vec<String> {
     rows.into_iter()
         .map(|r| r.into_iter().collect())
         .collect()
 }
 
-pub fn generate_level(name: &str, tile_width: f32, tile_height: f32) -> LevelData {
-    let mut rows = generate_maze(15, 13);
+pub fn generate_level(name: &str, tile_width: f32, tile_height: f32, level_index: usize) -> LevelData {
+    const BASE_WIDTH: usize = 15;
+    const BASE_HEIGHT: usize = 12;
+    let width_difficulty = level_index / 3 - 1;
+    let height_difficulty = level_index / 3;
+    let mut rows = generate_maze(BASE_WIDTH + width_difficulty, BASE_HEIGHT + height_difficulty);
 
     place_specials(&mut rows);
 
