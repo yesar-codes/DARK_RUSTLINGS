@@ -27,6 +27,7 @@ impl Plugin for GamePlugin {
                 gameplay::toggle_pause_menu,
                 player::move_player,
                 gameplay::update_level_flow.after(player::move_player),
+                camera::follow_player.after(gameplay::update_level_flow),
                 player::face_camera,
                 gameplay::update_timer_ui,
                 gameplay::handle_game_over_buttons,

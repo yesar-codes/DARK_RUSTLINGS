@@ -146,8 +146,18 @@ pub(crate) fn update_level_flow(
             }
         }
 
-        if let Some(exit_center) = collision.exit_center {
-            if player_pos.distance_squared(exit_center) <= trigger_distance_sq {
+        if let (Some(exit_center), Some(exit_direction)) = (collision.exit_center, collision.exit_direction) {
+            let to_exit = player_pos - exit_center;
+            let along_exit = to_exit.dot(exit_direction);
+            let lateral = to_exit - exit_direction * along_exit;
+            let lateral_limit = if exit_direction.x.abs() > 0.5 {
+                collision.tile_size.y * 0.55 + collider.radius
+            } else {
+                collision.tile_size.x * 0.55 + collider.radius
+            };
+
+            let moving_through_exit = velocity.0.dot(exit_direction) > 0.0;
+            if moving_through_exit && along_exit >= -0.05 && lateral.length() <= lateral_limit {
                 if current_level.0 + 1 < level_list.0.len() {
                     current_level.0 += 1;
                     level::despawn_level_entities(&mut commands, &level_entities);
@@ -159,8 +169,8 @@ pub(crate) fn update_level_flow(
                     )
                     .unwrap_or(Vec3::ZERO);
 
-                    player_transform.translation = spawn + Vec3::Y * 0.8;
-                    velocity.0 = Vec2::ZERO;
+                    let carry_forward = Vec3::new(exit_direction.x, 0.0, exit_direction.y) * (collider.radius + 0.2);
+                    player_transform.translation = spawn + Vec3::Y * 0.8 + carry_forward;
                     reset_for_new_level(&mut flow, &mut ambient_light);
                 } else {
                     trigger_win_screen(&mut commands, &mut flow, &overlay_query);

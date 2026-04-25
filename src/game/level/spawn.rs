@@ -19,8 +19,10 @@ pub struct PlayerSpawnPoint(pub Vec3);
 pub struct LevelCollision {
     pub wall_centers: Vec<Vec2>,
     pub wall_half_extents: Vec2,
+    pub tile_size: Vec2,
     pub switch_center: Option<Vec2>,
     pub exit_center: Option<Vec2>,
+    pub exit_direction: Option<Vec2>,
 }
 
 pub fn spawn_level(
@@ -106,6 +108,7 @@ pub fn spawn_level(
     let mut fallback_spawn = None;
     let mut switch_center = None;
     let mut exit_center = None;
+    let mut exit_direction = None;
 
     for (row_index, row) in level.rows.iter().enumerate() {
         for (col_index, tile) in row.chars().enumerate() {
@@ -141,14 +144,34 @@ pub fn spawn_level(
                     Transform::from_xyz(x, floor_height + 0.18, z),
                 ));
             } else if tile == 'E' {
-                exit_center = Some(Vec2::new(x, z));
+                let border_direction = if col_index == 0 {
+                    Some(Vec2::new(-1.0, 0.0))
+                } else if col_index + 1 == row_width {
+                    Some(Vec2::new(1.0, 0.0))
+                } else if row_index == 0 {
+                    Some(Vec2::new(0.0, -1.0))
+                } else if row_index + 1 == level.height() {
+                    Some(Vec2::new(0.0, 1.0))
+                } else {
+                    None
+                };
+
+                if border_direction.is_none() {
+                    warn!("Level '{}' has an exit tile ('E') that is not on the border", level.name);
+                }
+
+                if exit_center.is_none() && border_direction.is_some() {
+                    exit_center = Some(Vec2::new(x, z));
+                    exit_direction = border_direction;
+                }
+
                 commands.spawn((
                     LevelEntity,
                     Mesh3d(exit_mesh.clone()),
                     MeshMaterial3d(exit_material.clone()),
                     Transform::from_xyz(x, floor_height + 0.12, z),
                 ));
-            } else if tile == '.' && player_spawn.is_none() {
+            } else if tile == 'P' && player_spawn.is_none() {
                 player_spawn = Some(Vec3::new(x, floor_height, z));
             }
         }
@@ -158,7 +181,10 @@ pub fn spawn_level(
         warn!("Level '{}' has no light switch tile ('S')", level.name);
     }
     if exit_center.is_none() {
-        warn!("Level '{}' has no exit tile ('E')", level.name);
+        warn!("Level '{}' has no border exit tile ('E')", level.name);
+    }
+    if player_spawn.is_none() {
+        warn!("Level '{}' has no player start tile ('P')", level.name);
     }
 
     if switch_center.is_some() {
@@ -180,8 +206,10 @@ pub fn spawn_level(
     commands.insert_resource(LevelCollision {
         wall_centers,
         wall_half_extents: Vec2::new(tile_size_x * wall_scale * 0.5, tile_size_z * wall_scale * 0.5),
+        tile_size: Vec2::new(tile_size_x, tile_size_z),
         switch_center,
         exit_center,
+        exit_direction,
     });
 
     let spawn_position = player_spawn.or(fallback_spawn).unwrap_or(Vec3::ZERO);
