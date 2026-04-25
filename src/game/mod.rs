@@ -15,6 +15,7 @@ impl Plugin for GamePlugin {
             (
                 camera::spawn_camera,
                 camera::spawn_lighting,
+                player::init_soldier_animations,
                 level::spawn_initial_level,
             ),
         );
@@ -23,6 +24,7 @@ impl Plugin for GamePlugin {
         app.add_systems(
             Update,
             (
+                player::setup_animations_on_load,
                 player::move_player,
                 gameplay::update_level_flow.after(player::move_player),
                 player::face_camera,
