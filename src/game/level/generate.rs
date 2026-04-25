@@ -60,10 +60,16 @@ pub fn place_specials(rows: &mut Vec<Vec<char>>) -> (usize, usize) {
     let &(px, py) = floor.choose(&mut rng).unwrap();
     rows[py][px] = 'P';
 
-    let &(sx, sy) = floor.choose(&mut rng).unwrap();
-    rows[sy][sx] = 'S';
+    let switch_candidates: Vec<(usize, usize)> = floor
+        .iter()
+        .copied()
+        .filter(|&(x, y)| x != px || y != py)
+        .collect();
+    if let Some(&(sx, sy)) = switch_candidates.choose(&mut rng) {
+        rows[sy][sx] = 'S';
+    }
 
-    let (ex, ey) = find_farthest_point((px, py), rows);
+    let (ex, ey) = select_border_exit((px, py), rows);
     rows[ey][ex] = 'E';
 
     (px, py)
@@ -135,4 +141,82 @@ pub fn generate_level(name: &str, tile_width: f32, tile_height: f32) -> LevelDat
         tile_height,
         rows: ascii_to_strings(rows),
     }
+}
+
+fn select_border_exit(start: (usize, usize), rows: &mut Vec<Vec<char>>) -> (usize, usize) {
+    let h = rows.len();
+    let w = rows[0].len();
+
+    let mut visited = vec![vec![false; w]; h];
+    let mut queue = VecDeque::new();
+    let mut distance = vec![vec![usize::MAX; w]; h];
+
+    queue.push_back((start, 0usize));
+    visited[start.1][start.0] = true;
+    distance[start.1][start.0] = 0;
+
+    while let Some(((x, y), dist)) = queue.pop_front() {
+        let dirs = [(0, 1), (1, 0), (0, -1), (-1, 0)];
+
+        for (dx, dy) in dirs {
+            let nx = x as isize + dx;
+            let ny = y as isize + dy;
+            if nx < 0 || ny < 0 {
+                continue;
+            }
+
+            let nx = nx as usize;
+            let ny = ny as usize;
+            if nx >= w || ny >= h {
+                continue;
+            }
+
+            if !visited[ny][nx] && rows[ny][nx] != '#' {
+                visited[ny][nx] = true;
+                distance[ny][nx] = dist + 1;
+                queue.push_back(((nx, ny), dist + 1));
+            }
+        }
+    }
+
+    let mut best: Option<(usize, usize, usize, usize, usize)> = None;
+
+    for y in 1..(h - 1) {
+        if rows[y][1] != '#' && distance[y][1] != usize::MAX {
+            let d = distance[y][1];
+            if best.map_or(true, |candidate| d > candidate.4) {
+                best = Some((0, y, 1, y, d));
+            }
+        }
+        if rows[y][w - 2] != '#' && distance[y][w - 2] != usize::MAX {
+            let d = distance[y][w - 2];
+            if best.map_or(true, |candidate| d > candidate.4) {
+                best = Some((w - 1, y, w - 2, y, d));
+            }
+        }
+    }
+
+    for x in 1..(w - 1) {
+        if rows[1][x] != '#' && distance[1][x] != usize::MAX {
+            let d = distance[1][x];
+            if best.map_or(true, |candidate| d > candidate.4) {
+                best = Some((x, 0, x, 1, d));
+            }
+        }
+        if rows[h - 2][x] != '#' && distance[h - 2][x] != usize::MAX {
+            let d = distance[h - 2][x];
+            if best.map_or(true, |candidate| d > candidate.4) {
+                best = Some((x, h - 1, x, h - 2, d));
+            }
+        }
+    }
+
+    if let Some((exit_x, exit_y, inner_x, inner_y, _)) = best {
+        rows[inner_y][inner_x] = '.';
+        return (exit_x, exit_y);
+    }
+
+    let fallback_inner_x = start.0.clamp(1, w - 2);
+    rows[1][fallback_inner_x] = '.';
+    (fallback_inner_x, 0)
 }
