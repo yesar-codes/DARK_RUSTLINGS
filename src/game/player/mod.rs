@@ -39,10 +39,12 @@ pub(crate) fn spawn_player(
 
     let player_mesh = meshes.add(Mesh::from(Rectangle::new(2.7, 4.7)));
     let player_material = materials.add(StandardMaterial {
-        base_color_texture: Some(asset_server.load("sprites/amogus.png")),
+        base_color_texture: Some(asset_server.load("sprites/rustling.png")),
         base_color: Color::WHITE,
         unlit: true,
         alpha_mode: AlphaMode::Blend,
+        // The player is a single quad; disable culling so both faces cast shadows.
+        cull_mode: None,
         ..default()
     });
 
