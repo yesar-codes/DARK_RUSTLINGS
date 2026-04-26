@@ -1,4 +1,3 @@
-use bevy::app::AppExit;
 use bevy::audio::{AudioPlayer, PlaybackSettings};
 use bevy::prelude::*;
 
@@ -8,7 +7,7 @@ use crate::game::level::{
 use crate::game::player::{Player, PlayerCollider, Velocity};
 
 const LEVEL_TIME_LIMIT_SECONDS: f32 = 30.0;
-const SWITCH_LIGHT_INTENSITY: f32 = 1600_0000.0;
+const SWITCH_LIGHT_INTENSITY: f32 = 5000_0000.0;
 
 #[derive(Resource, Default)]
 pub struct PauseState {
@@ -173,7 +172,7 @@ pub(crate) fn update_level_flow(
         return;
     }
 
-    let Ok((mut player_transform, collider, mut velocity)) = player_query.single_mut() else {
+    let Ok((mut player_transform, collider, velocity)) = player_query.single_mut() else {
         return;
     };
 
@@ -212,37 +211,21 @@ pub(crate) fn update_level_flow(
 
             let moving_through_exit = velocity.0.dot(exit_direction) > 0.0;
             if moving_through_exit && along_exit >= -0.05 && lateral.length() <= lateral_limit {
-                if current_level.0 + 1 < level_list.0.len() {
-                    current_level.0 += 1;
-                    level::despawn_level_entities(&mut commands, &level_entities);
-                    let spawn = level::spawn_level_at_index(
-                        &mut commands,
-                        &asset_server,
-                        &mut meshes,
-                        &mut materials,
-                        current_level.0,
-                    )
+                current_level.0 += 1;
+                level::despawn_level_entities(&mut commands, &level_entities);
+                let spawn = level::spawn_level_at_index(
+                    &mut commands,
+                    &asset_server,
+                    &mut meshes,
+                    &mut materials,
+                    current_level.0,
+                    &level_list.0,
+                )
                     .unwrap_or(Vec3::ZERO);
 
-                    let carry_forward = Vec3::new(exit_direction.x, 0.0, exit_direction.y) * (collider.radius + 0.2);
-                    player_transform.translation = spawn + Vec3::Y * 0.8 + carry_forward;
-                    reset_for_new_level(&mut flow, &mut ambient_light);
-                } else {
-                    current_level.0 += 1;
-                    level::despawn_level_entities(&mut commands, &level_entities);
-                    let spawn = level::spawn_level_at_index(
-                        &mut commands,
-                        &asset_server,
-                        &mut meshes,
-                        &mut materials,
-                        current_level.0,
-                    )
-                        .unwrap_or(Vec3::ZERO);
-
-                    let carry_forward = Vec3::new(exit_direction.x, 0.0, exit_direction.y) * (collider.radius + 0.2);
-                    player_transform.translation = spawn + Vec3::Y * 0.8 + carry_forward;
-                    reset_for_new_level(&mut flow, &mut ambient_light);
-                }
+                let carry_forward = Vec3::new(exit_direction.x, 0.0, exit_direction.y) * (collider.radius + 0.2);
+                player_transform.translation = spawn + Vec3::Y * 0.8 + carry_forward;
+                reset_for_new_level(&mut flow, &mut ambient_light);
                 return;
             }
         }
@@ -267,13 +250,13 @@ pub(crate) fn handle_game_over_buttons(
         ),
         (Changed<Interaction>, With<Button>),
     >,
-    mut app_exit: MessageWriter<AppExit>,
     asset_server: Res<AssetServer>,
     mut flow: ResMut<LevelFlow>,
     mut ambient_light: ResMut<GlobalAmbientLight>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut current_level: ResMut<CurrentLevelIndex>,
+    current_level: Res<CurrentLevelIndex>,
+    level_list: Res<LevelList>,
     level_entities: Query<Entity, With<LevelEntity>>,
     mut player_query: Query<(&mut Transform, &mut Velocity), With<Player>>,
     ui_query: Query<Entity, With<GameOverUiRoot>>,
@@ -291,8 +274,9 @@ pub(crate) fn handle_game_over_buttons(
                         &mut meshes,
                         &mut materials,
                         current_level.0,
+                        &level_list.0,
                     )
-                    .unwrap_or(Vec3::ZERO);
+                        .unwrap_or(Vec3::ZERO);
 
                     reset_for_new_level(&mut flow, &mut ambient_light);
 
@@ -307,7 +291,7 @@ pub(crate) fn handle_game_over_buttons(
                 }
 
                 if quit.is_some() {
-                    app_exit.write(AppExit::Success);
+                    std::process::exit(0);
                 }
             }
             Interaction::Hovered => {
@@ -392,6 +376,8 @@ fn trigger_game_over(
         });
 }
 
+// dead code — kept for future use
+#[allow(dead_code)]
 fn trigger_win_screen(
     commands: &mut Commands,
     flow: &mut LevelFlow,
@@ -538,14 +524,14 @@ pub(crate) fn handle_pause_buttons(
         ),
         (Changed<Interaction>, With<Button>),
     >,
-    mut app_exit: MessageWriter<AppExit>,
     asset_server: Res<AssetServer>,
     mut pause_state: ResMut<PauseState>,
     mut flow: ResMut<LevelFlow>,
     mut ambient_light: ResMut<GlobalAmbientLight>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut current_level: ResMut<CurrentLevelIndex>,
+    current_level: Res<CurrentLevelIndex>,
+    level_list: Res<LevelList>,
     level_entities: Query<Entity, With<LevelEntity>>,
     mut player_query: Query<(&mut Transform, &mut Velocity), With<Player>>,
     pause_ui_query: Query<Entity, With<PauseUiRoot>>,
@@ -564,8 +550,9 @@ pub(crate) fn handle_pause_buttons(
                         &mut meshes,
                         &mut materials,
                         current_level.0,
+                        &level_list.0,
                     )
-                    .unwrap_or(Vec3::ZERO);
+                        .unwrap_or(Vec3::ZERO);
 
                     reset_for_new_level(&mut flow, &mut ambient_light);
 
@@ -580,7 +567,7 @@ pub(crate) fn handle_pause_buttons(
                 }
 
                 if quit.is_some() {
-                    app_exit.write(AppExit::Success);
+                    std::process::exit(0);
                 }
             }
             Interaction::Hovered => {
