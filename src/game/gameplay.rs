@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use crate::game::level::{
     self, CurrentLevelIndex, LevelCollision, LevelEntity, LevelList, LevelMusic, SwitchLight,
 };
-use crate::game::player::{Player, PlayerCollider, Velocity};
+use crate::game::player::{PLAYER_SPAWN_HEIGHT_OFFSET, Player, PlayerCollider, Velocity};
 
 const LEVEL_TIME_LIMIT_SECONDS: f32 = 30.0;
 const SWITCH_LIGHT_INTENSITY: f32 = 1600_0000.0;
@@ -118,7 +118,7 @@ pub(crate) fn update_level_ui(
 
 fn format_current_level_label(current_level_index: usize, premade_level_count: usize) -> String {
     if current_level_index < premade_level_count {
-        return format!("Level {:02}", current_level_index + 1);
+        return format!("Level {:02}", current_level_index);
     }
 
     let generated_index = current_level_index + 1 - premade_level_count;
@@ -173,7 +173,7 @@ pub(crate) fn update_level_flow(
         return;
     }
 
-    let Ok((mut player_transform, collider, mut velocity)) = player_query.single_mut() else {
+    let Ok((mut player_transform, collider, velocity)) = player_query.single_mut() else {
         return;
     };
 
@@ -225,7 +225,7 @@ pub(crate) fn update_level_flow(
                     .unwrap_or(Vec3::ZERO);
 
                     let carry_forward = Vec3::new(exit_direction.x, 0.0, exit_direction.y) * (collider.radius + 0.2);
-                    player_transform.translation = spawn + Vec3::Y * 0.8 + carry_forward;
+                    player_transform.translation = spawn + Vec3::Y * PLAYER_SPAWN_HEIGHT_OFFSET + carry_forward;
                     reset_for_new_level(&mut flow, &mut ambient_light);
                 } else {
                     current_level.0 += 1;
@@ -240,7 +240,7 @@ pub(crate) fn update_level_flow(
                         .unwrap_or(Vec3::ZERO);
 
                     let carry_forward = Vec3::new(exit_direction.x, 0.0, exit_direction.y) * (collider.radius + 0.2);
-                    player_transform.translation = spawn + Vec3::Y * 0.8 + carry_forward;
+                    player_transform.translation = spawn + Vec3::Y * PLAYER_SPAWN_HEIGHT_OFFSET + carry_forward;
                     reset_for_new_level(&mut flow, &mut ambient_light);
                 }
                 return;
@@ -273,7 +273,7 @@ pub(crate) fn handle_game_over_buttons(
     mut ambient_light: ResMut<GlobalAmbientLight>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut current_level: ResMut<CurrentLevelIndex>,
+    current_level: Res<CurrentLevelIndex>,
     level_entities: Query<Entity, With<LevelEntity>>,
     mut player_query: Query<(&mut Transform, &mut Velocity), With<Player>>,
     ui_query: Query<Entity, With<GameOverUiRoot>>,
@@ -297,7 +297,7 @@ pub(crate) fn handle_game_over_buttons(
                     reset_for_new_level(&mut flow, &mut ambient_light);
 
                     if let Ok((mut player_transform, mut velocity)) = player_query.single_mut() {
-                        player_transform.translation = spawn + Vec3::Y * 0.8;
+                        player_transform.translation = spawn + Vec3::Y * PLAYER_SPAWN_HEIGHT_OFFSET;
                         velocity.0 = Vec2::ZERO;
                     }
 
@@ -392,6 +392,7 @@ fn trigger_game_over(
         });
 }
 
+#[allow(dead_code)]
 fn trigger_win_screen(
     commands: &mut Commands,
     flow: &mut LevelFlow,
@@ -545,7 +546,7 @@ pub(crate) fn handle_pause_buttons(
     mut ambient_light: ResMut<GlobalAmbientLight>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut current_level: ResMut<CurrentLevelIndex>,
+    current_level: Res<CurrentLevelIndex>,
     level_entities: Query<Entity, With<LevelEntity>>,
     mut player_query: Query<(&mut Transform, &mut Velocity), With<Player>>,
     pause_ui_query: Query<Entity, With<PauseUiRoot>>,
@@ -570,7 +571,7 @@ pub(crate) fn handle_pause_buttons(
                     reset_for_new_level(&mut flow, &mut ambient_light);
 
                     if let Ok((mut player_transform, mut velocity)) = player_query.single_mut() {
-                        player_transform.translation = spawn + Vec3::Y * 0.8;
+                        player_transform.translation = spawn + Vec3::Y * PLAYER_SPAWN_HEIGHT_OFFSET;
                         velocity.0 = Vec2::ZERO;
                     }
 

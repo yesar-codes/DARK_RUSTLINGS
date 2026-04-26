@@ -5,6 +5,8 @@ use crate::game::camera::MainCamera;
 use crate::game::gameplay::{LevelFlow, PauseState};
 use crate::game::level::{LevelCollision, PlayerSpawnPoint};
 
+pub const PLAYER_SPAWN_HEIGHT_OFFSET: f32 = 2.1;
+
 #[derive(Component)]
 pub struct Player;
 
@@ -32,8 +34,8 @@ pub(crate) fn spawn_player(
     spawn_point: Option<Res<PlayerSpawnPoint>>,
 ) {
     let spawn = spawn_point
-        .map(|point| point.0 + Vec3::Y * 2.7)
-        .unwrap_or(Vec3::new(0.0, 6.0, 0.0));
+        .map(|point| point.0 + Vec3::Y * PLAYER_SPAWN_HEIGHT_OFFSET)
+        .unwrap_or(Vec3::new(0.0, PLAYER_SPAWN_HEIGHT_OFFSET, 0.0));
 
     let player_mesh = meshes.add(Mesh::from(Rectangle::new(2.7, 4.7)));
     let player_material = materials.add(StandardMaterial {
@@ -47,8 +49,8 @@ pub(crate) fn spawn_player(
     commands.spawn((
         Player,
         MovementConfig {
-            walk_speed: 4.5,
-            run_speed: 7.5,
+            walk_speed: 5.0,
+            run_speed: 10.0,
             acceleration: 18.0,
             deceleration: 24.0,
         },
