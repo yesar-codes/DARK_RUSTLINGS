@@ -1,5 +1,5 @@
-use bevy::math::primitives::Rectangle;
 use bevy::prelude::*;
+use std::time::Duration;
 
 use crate::game::camera::MainCamera;
 use crate::game::gameplay::{LevelFlow, PauseState, PowerupState};
@@ -26,19 +26,41 @@ pub(crate) struct PlayerCollider {
     pub(crate) radius: f32,
 }
 
+#[derive(Resource)]
+pub(crate) struct PlayerModelHandle(Handle<bevy::gltf::Gltf>);
+
+#[derive(Resource)]
+pub(crate) struct PlayerAnimations {
+    graph: Handle<AnimationGraph>,
+    indices: Vec<AnimationNodeIndex>,
+}
+
+#[derive(Component)]
+pub(crate) struct PlayerAnimationConfigured;
+
+#[derive(Component)]
+pub(crate) struct HiddenModelExtra;
+
+const MODEL_PATH: &str = "models/run.glb";
+const MODEL_SCALE: f32 = 2.0;
+
+pub(crate) fn load_player_model(mut commands: Commands, asset_server: Res<AssetServer>) {
+    commands.insert_resource(PlayerModelHandle(asset_server.load(MODEL_PATH)));
+}
+
 #[derive(Component)]
 pub struct PlayerLight;
 
 pub(crate) fn spawn_player(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     spawn_point: Option<Res<PlayerSpawnPoint>>,
 ) {
     let spawn = spawn_point
         .map(|point| point.0 + Vec3::Y * PLAYER_SPAWN_HEIGHT_OFFSET)
-        .unwrap_or(Vec3::new(0.0, PLAYER_SPAWN_HEIGHT_OFFSET, 0.0));
+        .unwrap_or(Vec3::new(0.0, PLAYER_SPAWN_HEIGHT_OFFSET, 0.0))
+        .map(|point| point.0)
+        .unwrap_or(Vec3::new(0.0, 0.1, 0.0));
 
     let player_mesh = meshes.add(Mesh::from(Rectangle::new(2.7, 4.7)));
     let player_material = materials.add(StandardMaterial {
@@ -77,6 +99,137 @@ pub(crate) fn spawn_player(
             Transform::from_xyz(0.0, 1.6, 0.0),
         ));
     });
+    commands
+        .spawn((
+            Player,
+            MovementConfig {
+                walk_speed: 4.5,
+                run_speed: 7.5,
+                acceleration: 18.0,
+                deceleration: 24.0,
+            },
+            Velocity::default(),
+            PlayerCollider { radius: 0.30 },
+            SceneRoot(asset_server.load(format!("{MODEL_PATH}#Scene0"))),
+            Transform::from_translation(spawn).with_scale(Vec3::splat(MODEL_SCALE)),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                PointLight {
+                    intensity: 300_000.0,
+                    range: 6.0,
+                    shadows_enabled: true,
+                    ..default()
+                },
+                Transform::from_xyz(0.0, 2.0, 0.0),
+            ));
+        });
+}
+
+pub(crate) fn setup_player_animations(
+    mut commands: Commands,
+    model_handle: Option<Res<PlayerModelHandle>>,
+    animations: Option<Res<PlayerAnimations>>,
+    gltf_assets: Res<Assets<bevy::gltf::Gltf>>,
+    mut graphs: ResMut<Assets<AnimationGraph>>,
+    mut unconfigured: Query<
+        (Entity, &mut AnimationPlayer),
+        Without<PlayerAnimationConfigured>,
+    >,
+) {
+    if animations.is_none() {
+        let Some(handle) = model_handle else { return };
+        let Some(gltf) = gltf_assets.get(&handle.0) else { return };
+        if gltf.animations.is_empty() {
+            warn!("Player model has no animations — inserting empty graph");
+            commands.insert_resource(PlayerAnimations {
+                graph: graphs.add(AnimationGraph::new()),
+                indices: vec![],
+            });
+            return;
+        }
+
+        for (name, _) in &gltf.named_animations {
+            info!("Player animation found: {name}");
+        }
+
+        let (graph, indices) =
+            AnimationGraph::from_clips(gltf.animations.iter().cloned());
+        commands.insert_resource(PlayerAnimations {
+            graph: graphs.add(graph),
+            indices,
+        });
+        return;
+    }
+
+    let animations = animations.unwrap();
+    for (entity, mut player) in &mut unconfigured {
+        let mut transitions = AnimationTransitions::new();
+        transitions
+            .play(&mut player, animations.indices[0], Duration::ZERO)
+            .repeat();
+        commands.entity(entity).insert((
+            AnimationGraphHandle(animations.graph.clone()),
+            transitions,
+            PlayerAnimationConfigured,
+        ));
+    }
+}
+
+pub(crate) fn update_player_animation(
+    animations: Option<Res<PlayerAnimations>>,
+    player_query: Query<&Velocity, With<Player>>,
+    mut anim_query: Query<&mut AnimationPlayer, With<PlayerAnimationConfigured>>,
+) {
+    let Some(animations) = animations else { return };
+    let Ok(velocity) = player_query.single() else { return };
+    if animations.indices.is_empty() {
+        return;
+    }
+
+    let move_speed = velocity.0.length();
+    let anim_speed = if move_speed < 0.5 {
+        0.0
+    } else if move_speed < 5.0 {
+        0.6
+    } else {
+        1.0
+    };
+
+    let idx = animations.indices[0];
+    for mut player in &mut anim_query {
+        if let Some(active) = player.animation_mut(idx) {
+            active.set_speed(anim_speed);
+        }
+    }
+}
+
+pub(crate) fn hide_model_extras(
+    mut commands: Commands,
+    extras: Query<(Entity, &Name), Without<HiddenModelExtra>>,
+) {
+    for (entity, name) in &extras {
+        if name.as_str() == "Cube" {
+            commands
+                .entity(entity)
+                .insert((Visibility::Hidden, HiddenModelExtra));
+        }
+    }
+}
+
+pub(crate) fn face_movement_direction(
+    time: Res<Time>,
+    mut player_query: Query<(&mut Transform, &Velocity), With<Player>>,
+) {
+    for (mut transform, velocity) in &mut player_query {
+        if velocity.0.length_squared() < 0.01 {
+            continue;
+        }
+        let yaw = velocity.0.x.atan2(velocity.0.y);
+        let target = Quat::from_rotation_y(yaw);
+        transform.rotation =
+            transform.rotation.slerp(target, (time.delta_secs() * 10.0).min(1.0));
+    }
 }
 
 pub(crate) fn move_player(
@@ -164,66 +317,61 @@ pub(crate) fn move_player(
         }
 
         let move_step = velocity.0 * delta_seconds;
-        let mut next = Vec2::new(transform.translation.x, transform.translation.z);
+        let origin = Vec2::new(transform.translation.x, transform.translation.z);
+        let target = origin + move_step;
 
-        // Resolve X and Z independently so movement naturally slides along walls.
-        let test_x = Vec2::new(next.x + move_step.x, next.y);
-        if !is_blocked(test_x, collider.radius, collision.as_deref()) {
-            next.x = test_x.x;
-        } else {
-            velocity.0.x = 0.0;
-        }
-
-        let test_z = Vec2::new(next.x, next.y + move_step.y);
-        if !is_blocked(test_z, collider.radius, collision.as_deref()) {
-            next.y = test_z.y;
-        } else {
-            velocity.0.y = 0.0;
-        }
+        let next = resolve_collisions(target, collider.radius, collision.as_deref());
+        velocity.0 = (next - origin) / delta_seconds;
 
         transform.translation.x = next.x;
         transform.translation.z = next.y;
     }
 }
 
-pub(crate) fn face_camera(
-    camera_query: Query<&GlobalTransform, (With<MainCamera>, Without<Player>)>,
-    mut player_query: Query<&mut Transform, With<Player>>,
-) {
-    let Ok(camera_transform) = camera_query.single() else {
-        return;
-    };
-
-    let camera_pos = camera_transform.translation();
-    for mut player_transform in &mut player_query {
-        let to_camera = Vec3::new(
-            camera_pos.x - player_transform.translation.x,
-            0.0,
-            camera_pos.z - player_transform.translation.z,
-        );
-
-        if to_camera.length_squared() > 0.0001 {
-            let yaw = to_camera.x.atan2(to_camera.z);
-            player_transform.rotation = Quat::from_rotation_y(yaw);
-        }
-    }
-}
-
-fn is_blocked(position: Vec2, radius: f32, collision: Option<&LevelCollision>) -> bool {
+fn resolve_collisions(mut position: Vec2, radius: f32, collision: Option<&LevelCollision>) -> Vec2 {
     let Some(collision) = collision else {
-        return false;
+        return position;
     };
 
-    for center in &collision.wall_centers {
-        let min = *center - collision.wall_half_extents;
-        let max = *center + collision.wall_half_extents;
-        let closest = position.clamp(min, max);
+    for _ in 0..4 {
+        let mut any = false;
+        for center in &collision.wall_centers {
+            let half = collision.wall_half_extents;
+            let min = *center - half;
+            let max = *center + half;
+            let closest = position.clamp(min, max);
+            let diff = position - closest;
+            let dist_sq = diff.length_squared();
 
-        if position.distance_squared(closest) <= radius * radius {
-            return true;
+            if dist_sq >= radius * radius {
+                continue;
+            }
+
+            any = true;
+            if dist_sq > 1e-8 {
+                let dist = dist_sq.sqrt();
+                position += (diff / dist) * (radius - dist);
+            } else {
+                let dl = position.x - min.x;
+                let dr = max.x - position.x;
+                let db = position.y - min.y;
+                let dt = max.y - position.y;
+                let m = dl.min(dr).min(db).min(dt);
+                if m == dl {
+                    position.x = min.x - radius;
+                } else if m == dr {
+                    position.x = max.x + radius;
+                } else if m == db {
+                    position.y = min.y - radius;
+                } else {
+                    position.y = max.y + radius;
+                }
+            }
+        }
+        if !any {
+            break;
         }
     }
 
-    false
+    position
 }
-

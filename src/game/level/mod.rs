@@ -33,7 +33,7 @@ pub fn spawn_initial_level(
     commands.insert_resource(LevelList(levels.clone()));
     commands.insert_resource(CurrentLevelIndex(0));
 
-    let _ = spawn_level_at_index(&mut commands, &asset_server, &mut meshes, &mut materials, 0);
+    let _ = spawn_level_at_index(&mut commands, &asset_server, &mut meshes, &mut materials, 0, &levels);
 }
 
 pub fn spawn_level_at_index(
@@ -42,11 +42,8 @@ pub fn spawn_level_at_index(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     level_index: usize,
+    level_list: &[PathBuf],
 ) -> Option<Vec3> {
-
-    let level_list = discover_levels();
-
-    // premade levels
     if level_index < level_list.len() {
         let level_path = &level_list[level_index];
 
@@ -67,6 +64,7 @@ pub fn spawn_level_at_index(
         64.0,
         32.0,
         level_index,
+        level_list.len(),
     );
 
     spawn::spawn_level(commands, meshes, materials, &level).map(|spawn_position| {

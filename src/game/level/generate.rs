@@ -4,7 +4,7 @@ use rand::rng;
 
 use crate::game::level::data::LevelData;
 
-pub fn generate_maze(width: usize, height: usize) -> Vec<Vec<char>> {
+fn generate_maze(width: usize, height: usize) -> Vec<Vec<char>> {
     let mut grid = vec![vec!['#'; width]; height];
 
     let mut rng = rng();
@@ -33,7 +33,6 @@ pub fn generate_maze(width: usize, height: usize) -> Vec<Vec<char>> {
 
             let &(nx, ny) = neighbors.choose(&mut rng).unwrap();
 
-            // carve path
             grid[ny][nx] = '.';
             grid[(y + ny) / 2][(x + nx) / 2] = '.';
 
@@ -44,7 +43,7 @@ pub fn generate_maze(width: usize, height: usize) -> Vec<Vec<char>> {
     grid
 }
 
-pub fn place_specials(rows: &mut Vec<Vec<char>>) -> (usize, usize) {
+fn place_specials(rows: &mut Vec<Vec<char>>) -> (usize, usize) {
     let mut rng = rng();
     let mut floor = Vec::new();
 
@@ -92,24 +91,18 @@ pub fn place_specials(rows: &mut Vec<Vec<char>>) -> (usize, usize) {
     (px, py)
 }
 
-pub fn ascii_to_strings(rows: Vec<Vec<char>>) -> Vec<String> {
+fn ascii_to_strings(rows: Vec<Vec<char>>) -> Vec<String> {
     rows.into_iter()
         .map(|r| r.into_iter().collect())
         .collect()
 }
 
-pub fn generate_level(name: &str, tile_width: f32, tile_height: f32, level_index: usize) -> LevelData {
+pub(super) fn generate_level(name: &str, tile_width: f32, tile_height: f32, level_index: usize, premade_count: usize) -> LevelData {
     const BASE_WIDTH: usize = 13;
     const BASE_HEIGHT: usize = 11;
 
-    /*
-        TODO: level count shouldn't be a constant
-     */
-    const LEVEL_COUNT: usize = 4;
-
-    // field gets bigger after 2 wins
-    let mut width_difficulty = level_index - LEVEL_COUNT;
-    let mut height_difficulty = level_index - LEVEL_COUNT;
+    let mut width_difficulty = level_index - premade_count;
+    let mut height_difficulty = level_index - premade_count;
     if (level_index + BASE_WIDTH) % 2 == 0 {
         width_difficulty -= 1;
         height_difficulty -= 1;

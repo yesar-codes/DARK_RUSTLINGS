@@ -3,6 +3,7 @@ use bevy::math::primitives::Cuboid;
 
 use super::data::LevelData;
 
+// dead code — spawned for future queries (e.g. raycasting, destruction)
 #[derive(Component)]
 pub struct WallBlock;
 
@@ -36,7 +37,7 @@ pub struct LevelCollision {
     pub exit_direction: Option<Vec2>,
 }
 
-pub fn spawn_level(
+pub(super) fn spawn_level(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
