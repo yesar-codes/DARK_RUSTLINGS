@@ -5,7 +5,7 @@ use crate::game::camera::MainCamera;
 use crate::game::gameplay::{LevelFlow, PauseState, PowerupState};
 use crate::game::level::{LevelCollision, PlayerSpawnPoint};
 
-pub const PLAYER_SPAWN_HEIGHT_OFFSET: f32 = 2.1;
+pub const PLAYER_SPAWN_HEIGHT_OFFSET: f32 = 0.05;
 
 #[derive(Component)]
 pub struct Player;
@@ -58,47 +58,8 @@ pub(crate) fn spawn_player(
 ) {
     let spawn = spawn_point
         .map(|point| point.0 + Vec3::Y * PLAYER_SPAWN_HEIGHT_OFFSET)
-        .unwrap_or(Vec3::new(0.0, PLAYER_SPAWN_HEIGHT_OFFSET, 0.0))
-        .map(|point| point.0)
-        .unwrap_or(Vec3::new(0.0, 0.1, 0.0));
+        .unwrap_or(Vec3::new(0.0, PLAYER_SPAWN_HEIGHT_OFFSET, 0.0));
 
-    let player_mesh = meshes.add(Mesh::from(Rectangle::new(2.7, 4.7)));
-    let player_material = materials.add(StandardMaterial {
-        base_color_texture: Some(asset_server.load("sprites/rustling.png")),
-        base_color: Color::WHITE,
-        unlit: true,
-        alpha_mode: AlphaMode::Blend,
-        // The player is a single quad; disable culling so both faces cast shadows.
-        cull_mode: None,
-        ..default()
-    });
-
-    commands.spawn((
-        Player,
-        MovementConfig {
-            walk_speed: 5.0,
-            run_speed: 10.0,
-            acceleration: 18.0,
-            deceleration: 24.0,
-        },
-        Velocity::default(),
-        PlayerCollider { radius: 0.30 },
-        Mesh3d(player_mesh),
-        MeshMaterial3d(player_material),
-        Transform::from_translation(spawn),
-    ))
-    .with_children(|parent| {
-        parent.spawn((
-            PlayerLight,
-            PointLight {
-                intensity: 20_4000.0,
-                range: 4.0,
-                shadows_enabled: true,
-                ..default()
-            },
-            Transform::from_xyz(0.0, 1.6, 0.0),
-        ));
-    });
     commands
         .spawn((
             Player,
@@ -118,7 +79,7 @@ pub(crate) fn spawn_player(
                 PointLight {
                     intensity: 300_000.0,
                     range: 6.0,
-                    shadows_enabled: true,
+                    shadows_enabled: false,
                     ..default()
                 },
                 Transform::from_xyz(0.0, 2.0, 0.0),
@@ -130,7 +91,7 @@ pub(crate) fn setup_player_animations(
     mut commands: Commands,
     model_handle: Option<Res<PlayerModelHandle>>,
     animations: Option<Res<PlayerAnimations>>,
-    gltf_assets: Res<Assets<bevy::gltf::Gltf>>,
+    gltf_assets: Res<Assets<Gltf>>,
     mut graphs: ResMut<Assets<AnimationGraph>>,
     mut unconfigured: Query<
         (Entity, &mut AnimationPlayer),
@@ -301,12 +262,11 @@ pub(crate) fn move_player(
         let target_speed = base_target_speed * speed_multiplier;
 
         let desired_velocity = move_dir * target_speed;
-        let rate_multiplier = speed_multiplier;
         let rate = if desired_velocity.length_squared() > velocity.0.length_squared() {
             movement.acceleration
         } else {
             movement.deceleration
-        } * rate_multiplier;
+        };
 
         let delta_velocity = desired_velocity - velocity.0;
         let max_change = rate * delta_seconds;
@@ -318,13 +278,27 @@ pub(crate) fn move_player(
 
         let move_step = velocity.0 * delta_seconds;
         let origin = Vec2::new(transform.translation.x, transform.translation.z);
-        let target = origin + move_step;
 
-        let next = resolve_collisions(target, collider.radius, collision.as_deref());
-        velocity.0 = (next - origin) / delta_seconds;
+        let step_count = ((move_step.length() / collider.radius).ceil() as u32).max(1).min(8);
+        let sub_step = move_step / step_count as f32;
+        let mut pos = origin;
 
-        transform.translation.x = next.x;
-        transform.translation.z = next.y;
+        for _ in 0..step_count {
+            let candidate = pos + sub_step;
+            pos = resolve_collisions(candidate, collider.radius, collision.as_deref());
+        }
+
+        let actual_move = pos - origin;
+        if actual_move.length_squared() > 1e-8 {
+            let allowed_dir = actual_move.normalize();
+            let original_speed = velocity.0.length();
+            velocity.0 = allowed_dir * original_speed;
+        } else {
+            velocity.0 = Vec2::ZERO;
+        }
+
+        transform.translation.x = pos.x;
+        transform.translation.z = pos.y;
     }
 }
 

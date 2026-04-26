@@ -332,27 +332,8 @@ pub(crate) fn update_level_flow(
                     .unwrap_or(Vec3::ZERO);
 
                 let carry_forward = Vec3::new(exit_direction.x, 0.0, exit_direction.y) * (collider.radius + 0.2);
-                player_transform.translation = spawn + Vec3::Y * 0.8 + carry_forward;
-                reset_for_new_level(&mut flow, &mut ambient_light);
-                    let carry_forward = Vec3::new(exit_direction.x, 0.0, exit_direction.y) * (collider.radius + 0.2);
-                    player_transform.translation = spawn + Vec3::Y * PLAYER_SPAWN_HEIGHT_OFFSET + carry_forward;
-                    reset_for_new_level(&mut flow, &mut powerups, &mut ambient_light);
-                } else {
-                    current_level.0 += 1;
-                    level::despawn_level_entities(&mut commands, &level_entities);
-                    let spawn = level::spawn_level_at_index(
-                        &mut commands,
-                        &asset_server,
-                        &mut meshes,
-                        &mut materials,
-                        current_level.0,
-                    )
-                        .unwrap_or(Vec3::ZERO);
-
-                    let carry_forward = Vec3::new(exit_direction.x, 0.0, exit_direction.y) * (collider.radius + 0.2);
-                    player_transform.translation = spawn + Vec3::Y * PLAYER_SPAWN_HEIGHT_OFFSET + carry_forward;
-                    reset_for_new_level(&mut flow, &mut powerups, &mut ambient_light);
-                }
+                player_transform.translation = spawn + Vec3::Y * PLAYER_SPAWN_HEIGHT_OFFSET + carry_forward;
+                reset_for_new_level(&mut flow, &mut powerups, &mut ambient_light);
                 return;
             }
         }
@@ -414,7 +395,6 @@ pub(crate) fn handle_game_over_buttons(
     mut materials: ResMut<Assets<StandardMaterial>>,
     current_level: Res<CurrentLevelIndex>,
     level_list: Res<LevelList>,
-    current_level: Res<CurrentLevelIndex>,
     level_entities: Query<Entity, With<LevelEntity>>,
     mut player_query: Query<(&mut Transform, &mut Velocity), With<Player>>,
     ui_query: Query<Entity, With<GameOverUiRoot>>,
