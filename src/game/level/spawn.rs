@@ -15,6 +15,12 @@ pub struct SwitchLight;
 #[derive(Component)]
 pub struct LevelMusic;
 
+#[derive(Component)]
+pub struct SpeedPowerupTile;
+
+#[derive(Component)]
+pub struct LightRangePowerupTile;
+
 #[derive(Resource, Debug, Clone)]
 pub struct PlayerSpawnPoint(pub Vec3);
 
@@ -24,6 +30,8 @@ pub struct LevelCollision {
     pub wall_half_extents: Vec2,
     pub tile_size: Vec2,
     pub switch_center: Option<Vec2>,
+    pub speed_powerup_center: Option<Vec2>,
+    pub light_powerup_center: Option<Vec2>,
     pub exit_center: Option<Vec2>,
     pub exit_direction: Option<Vec2>,
 }
@@ -88,6 +96,28 @@ pub fn spawn_level(
         ..default()
     });
 
+    let speed_powerup_mesh = meshes.add(Mesh::from(Cuboid::new(
+        tile_size_x * 0.7,
+        0.25,
+        tile_size_z * 0.7,
+    )));
+    let speed_powerup_material = materials.add(StandardMaterial {
+        base_color: Color::srgb_u8(120, 255, 112),
+        emissive: Color::srgb_u8(80, 255, 90).into(),
+        ..default()
+    });
+
+    let light_powerup_mesh = meshes.add(Mesh::from(Cuboid::new(
+        tile_size_x * 0.7,
+        0.25,
+        tile_size_z * 0.7,
+    )));
+    let light_powerup_material = materials.add(StandardMaterial {
+        base_color: Color::srgb_u8(255, 102, 102),
+        emissive: Color::srgb_u8(255, 72, 72).into(),
+        ..default()
+    });
+
     let exit_mesh = meshes.add(Mesh::from(Cuboid::new(
         tile_size_x * 0.7,
         0.25,
@@ -110,6 +140,8 @@ pub fn spawn_level(
     let mut player_spawn = None;
     let mut fallback_spawn = None;
     let mut switch_center = None;
+    let mut speed_powerup_center = None;
+    let mut light_powerup_center = None;
     let mut exit_center = None;
     let mut exit_direction = None;
 
@@ -144,6 +176,24 @@ pub fn spawn_level(
                     LevelEntity,
                     Mesh3d(switch_mesh.clone()),
                     MeshMaterial3d(switch_material.clone()),
+                    Transform::from_xyz(x, floor_height + 0.18, z),
+                ));
+            } else if tile == 'G' {
+                speed_powerup_center = Some(Vec2::new(x, z));
+                commands.spawn((
+                    LevelEntity,
+                    SpeedPowerupTile,
+                    Mesh3d(speed_powerup_mesh.clone()),
+                    MeshMaterial3d(speed_powerup_material.clone()),
+                    Transform::from_xyz(x, floor_height + 0.18, z),
+                ));
+            } else if tile == 'R' {
+                light_powerup_center = Some(Vec2::new(x, z));
+                commands.spawn((
+                    LevelEntity,
+                    LightRangePowerupTile,
+                    Mesh3d(light_powerup_mesh.clone()),
+                    MeshMaterial3d(light_powerup_material.clone()),
                     Transform::from_xyz(x, floor_height + 0.18, z),
                 ));
             } else if tile == 'E' {
@@ -211,6 +261,8 @@ pub fn spawn_level(
         wall_half_extents: Vec2::new(tile_size_x * wall_scale * 0.5, tile_size_z * wall_scale * 0.5),
         tile_size: Vec2::new(tile_size_x, tile_size_z),
         switch_center,
+        speed_powerup_center,
+        light_powerup_center,
         exit_center,
         exit_direction,
     });

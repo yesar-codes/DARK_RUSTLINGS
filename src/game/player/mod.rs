@@ -2,7 +2,7 @@ use bevy::math::primitives::Rectangle;
 use bevy::prelude::*;
 
 use crate::game::camera::MainCamera;
-use crate::game::gameplay::{LevelFlow, PauseState};
+use crate::game::gameplay::{LevelFlow, PauseState, PowerupState};
 use crate::game::level::{LevelCollision, PlayerSpawnPoint};
 
 pub const PLAYER_SPAWN_HEIGHT_OFFSET: f32 = 2.1;
@@ -25,6 +25,9 @@ pub(crate) struct Velocity(pub Vec2);
 pub(crate) struct PlayerCollider {
     pub(crate) radius: f32,
 }
+
+#[derive(Component)]
+pub struct PlayerLight;
 
 pub(crate) fn spawn_player(
     mut commands: Commands,
@@ -64,6 +67,7 @@ pub(crate) fn spawn_player(
     ))
     .with_children(|parent| {
         parent.spawn((
+            PlayerLight,
             PointLight {
                 intensity: 20_4000.0,
                 range: 4.0,
@@ -80,6 +84,7 @@ pub(crate) fn move_player(
     time: Res<Time>,
     flow: Option<Res<LevelFlow>>,
     pause_state: Res<PauseState>,
+    powerup_state: Option<Res<PowerupState>>,
     collision: Option<Res<LevelCollision>>,
     camera_query: Query<&GlobalTransform, With<MainCamera>>,
     mut player_query: Query<
@@ -132,18 +137,23 @@ pub(crate) fn move_player(
             keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
 
         let move_dir = (right_xz * input.x + forward_xz * input.y).normalize_or_zero();
-        let target_speed = if run_pressed {
+        let base_target_speed = if run_pressed {
             movement.run_speed
         } else {
             movement.walk_speed
         };
+        let speed_multiplier = powerup_state
+            .as_deref()
+            .map_or(1.0, |state| state.speed_multiplier());
+        let target_speed = base_target_speed * speed_multiplier;
 
         let desired_velocity = move_dir * target_speed;
+        let rate_multiplier = speed_multiplier;
         let rate = if desired_velocity.length_squared() > velocity.0.length_squared() {
             movement.acceleration
         } else {
             movement.deceleration
-        };
+        } * rate_multiplier;
 
         let delta_velocity = desired_velocity - velocity.0;
         let max_change = rate * delta_seconds;

@@ -71,6 +71,24 @@ pub fn place_specials(rows: &mut Vec<Vec<char>>) -> (usize, usize) {
     let (ex, ey) = select_border_exit((px, py), rows);
     rows[ey][ex] = 'E';
 
+    let mut powerup_candidates = Vec::new();
+    for y in 0..rows.len() {
+        for x in 0..rows[y].len() {
+            if rows[y][x] == '.' {
+                powerup_candidates.push((x, y));
+            }
+        }
+    }
+
+    if let Some(&(gx, gy)) = powerup_candidates.choose(&mut rng) {
+        rows[gy][gx] = 'G';
+        powerup_candidates.retain(|&(x, y)| x != gx || y != gy);
+    }
+
+    if let Some(&(rx, ry)) = powerup_candidates.choose(&mut rng) {
+        rows[ry][rx] = 'R';
+    }
+
     (px, py)
 }
 

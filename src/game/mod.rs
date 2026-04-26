@@ -11,6 +11,7 @@ impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<gameplay::LevelFlow>();
         app.init_resource::<gameplay::PauseState>();
+        app.init_resource::<gameplay::PowerupState>();
         app.add_systems(
             Startup,
             (
@@ -28,6 +29,7 @@ impl Plugin for GamePlugin {
                 gameplay::toggle_pause_menu,
                 player::move_player,
                 gameplay::update_level_flow.after(player::move_player),
+                gameplay::update_player_light_range.after(gameplay::update_level_flow),
                 camera::follow_player.after(gameplay::update_level_flow),
                 player::face_camera,
                 gameplay::update_level_ui,

@@ -4,7 +4,9 @@ mod spawn;
 mod generate;
 
 use bevy::audio::{AudioPlayer, PlaybackSettings};
-pub use spawn::{LevelCollision, LevelEntity, LevelMusic, PlayerSpawnPoint, SwitchLight};
+pub use spawn::{
+    LevelCollision, LevelEntity, LevelMusic, PlayerSpawnPoint, SwitchLight,
+};
 
 use bevy::prelude::*;
 use std::fs;
